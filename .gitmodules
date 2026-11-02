@@ -1,12 +1,12 @@
 [submodule "M2-Planet"]
 	path = M2-Planet
-	url = https://github.com/Pandapip1/M2-Planet.git
+	url = https://github.com/Novavero-AI/M2-Planet.git
 [submodule "M2libc"]
 	path = M2libc
-	url = https://github.com/Pandapip1/M2libc.git
+	url = https://github.com/Novavero-AI/M2libc.git
 [submodule "mescc-tools"]
 	path = mescc-tools
-	url = https://github.com/Pandapip1/mescc-tools.git
+	url = https://github.com/Novavero-AI/mescc-tools.git
 [submodule "mescc-tools-extra"]
 	path = mescc-tools-extra
 	url = https://github.com/oriansj/mescc-tools-extra
