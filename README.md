@@ -43,9 +43,10 @@ reading, from the bottom up.
 
 Clone with submodules -- from cc_x86 up, the build compiles C, and M2-Planet,
 M2libc, mescc-tools and mescc-tools-extra are vendored as submodules rather
-than by hand.  M2-Planet and mescc-tools-extra are upstream's exactly as
-upstream wrote them; M2libc and mescc-tools are forks, and each carries one
-Windows-shaped change that is described where it matters below:
+than by hand.  mescc-tools-extra is upstream's exactly as upstream wrote it.
+M2libc and mescc-tools are forks that each carry one Windows-shaped change, and
+M2-Planet is a fork that carries two general fixes, all described where they
+matter below:
 
     git clone --recurse-submodules <this repo>
 
@@ -131,13 +132,15 @@ demonstrably the same compiler.
 
 From cc_x86 up, the chain compiles C rather than hand-written assembly, and the
 C it compiles first is M2-Planet's own: `M2-Planet/`, `M2libc/` and
-`mescc-tools/` are git submodules, pinned at or just above the exact commits
-stage0-posix itself vendors them at. Almost nothing in them is
+`mescc-tools/` are git submodules. M2libc and mescc-tools are pinned at or just
+above the exact commits stage0-posix itself vendors them at; M2-Planet follows
+upstream's master, with the fixes upstream has not taken yet on top. Almost
+nothing in them is
 Windows-specific: mescc-tools needs two lines in kaem, and M2libc needs the
 `x86/windows/` target this project wrote.
 
-M2-Planet needs nothing Windows-specific either, but carries one fix that
-is not: `&&` and `||` were compiled as the exact same instruction as `&`
+M2-Planet needs nothing Windows-specific either, but carries two fixes that
+are not. The first: `&&` and `||` were compiled as the exact same instruction as `&`
 and `|` on every architecture -- both sides evaluated unconditionally, no
 short-circuit, the raw bitwise combination kept as the result rather than
 0 or 1. `if (p && *p)`, the ordinary C idiom for "don't read through a
@@ -145,6 +148,11 @@ pointer that might be null", read through it first and checked second.
 Found by exactly that shape crashing GNU Mes's own `__assert_fail` on this
 port -- the two are pinned against each other for a reason -- but the bug
 and the fix are both general; nothing about them is Windows's.
+
+The second: `&p[i]` started from the address of the variable `p` rather than
+its value whenever `p` was a pointer or a global array, so it compiled to the
+wrong address without a warning. Upstream's own fix covers local arrays only;
+this one is offered upstream as oriansj/M2-Planet#179.
 
 `mescc-tools-extra/` is vendored at the same commit and for the same reason,
 and nothing in it needed porting at all. It is not part of the chain -- no
