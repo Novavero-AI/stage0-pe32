@@ -8,15 +8,14 @@
  * rather than trusted: each chunk is written at its first and last byte with
  * a pattern that depends on which chunk it is, then every earlier chunk is
  * re-read to confirm nothing was silently aliased or left unbacked.  Before
- * M2libc's own stdlib.c (a fork, https://github.com/Pandapip1/M2libc,
- * branch windows-malloc-brk -- see .gitmodules) gave _malloc_brk a
+ * M2libc/stdlib.c gave _malloc_brk a
  * #ifdef __windows__ path that grows past one image-sized region into
  * further ones reserved and committed from the operating system as needed,
  * this would have failed outright once the 128MB section ran out, or --
  * from an earlier design tried and abandoned for this same fix -- failed
  * to even start, on STATUS_CONFLICTING_ADDRESSES, because nowhere fixed
  * and contiguous with the image was actually free to grow into. See
- * _malloc_brk's own comment in that fork's stdlib.c for the full mechanism
+ * _malloc_brk's own comment in M2libc/stdlib.c for the full mechanism
  * and why the simpler designs before it did not work.
  */
 

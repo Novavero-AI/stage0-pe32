@@ -132,12 +132,10 @@ demonstrably the same compiler.
 
 From cc_x86 up, the chain compiles C rather than hand-written assembly, and the
 C it compiles first is M2-Planet's own: `M2-Planet/`, `M2libc/` and
-`mescc-tools/` are git submodules. M2libc and mescc-tools are pinned at or just
-above the exact commits stage0-posix itself vendors them at; M2-Planet follows
-upstream's master, with the fixes upstream has not taken yet on top. Almost
-nothing in them is
-Windows-specific: mescc-tools needs two lines in kaem, and M2libc needs the
-`x86/windows/` target this project wrote.
+`mescc-tools/` are git submodules. Each follows upstream's default branch, with
+the commits upstream has not taken yet on top. Almost nothing in them is
+Windows-specific: mescc-tools needs two changes to kaem, and M2libc needs the
+`x86/windows/` target this project wrote and a Windows path in `_malloc_brk`.
 
 M2-Planet needs nothing Windows-specific either, but carries two fixes that
 are not. The first: `&&` and `||` were compiled as the exact same instruction as `&`
@@ -154,8 +152,8 @@ its value whenever `p` was a pointer or a global array, so it compiled to the
 wrong address without a warning. Upstream's own fix covers local arrays only;
 this one is offered upstream as oriansj/M2-Planet#179.
 
-`mescc-tools-extra/` is vendored at the same commit and for the same reason,
-and nothing in it needed porting at all. It is not part of the chain -- no
+`mescc-tools-extra/` follows upstream's master as well, with nothing on top,
+because nothing in it needed porting at all. It is not part of the chain -- no
 link below hex2-new uses it -- but mkdir, cp, chmod and the unpackers are what
 anything built on top of the chain reaches for once it has a compiler, and
 they are ordinary C standing on the same M2libc. `x86/libc-core.M1` and `M2libc/x86/windows/bootstrap.c` are
