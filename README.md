@@ -236,9 +236,12 @@ whole C library for the stages that can use `--bootstrap-mode`; `unistd.c`,
 `stdio.c` for the stages that cannot. A file descriptor is a Windows HANDLE,
 with 0, 1 and 2 still meaning the three standard streams -- no real handle is
 that small, so nothing above can tell. `brk` has nothing to ask the kernel for,
-since the image carries its writable memory with it, and `chmod` does nothing
-and returns success, which is the honest answer on a system where a file is
-executable because its PE header says so.
+since the image carries its writable memory with it. Windows runs a PE because
+its header says so and keeps no executable bit, but a Nix archive records one
+for every regular file, so `chmod` keeps the owner execute bit as the
+`nova.exec` alternate data stream nova-nix reads it from: set, the stream is
+made; clear, it is removed. hex2's `chmod(output, 0750)` marks what it links,
+as on Linux.
 
 Everything M2libc's `unistd.h` and `sys/stat.h` declare is there.
 `M2libc/x86/windows/ntdll.c` is what the rest of it stands on:
@@ -261,9 +264,9 @@ layer even though the compiled C layer above no longer calls into it.
 answer.
 
 Where Windows has no answer -- `chroot`, `mount`, `unshare`, `symlink`,
-`mknod`, `fchdir` -- the call fails, and says why above itself. Failing is the
-point: `chmod` returning 0 is honest because a PE runs on account of its
-header, and `chroot` returning 0 would not be.
+`mknod`, `fchdir`, `fchmod` -- the call fails, and says why above itself.
+Failing is the point: `chroot` returning 0 would tell its caller something
+that is not true.
 
 Calling ntdll from compiled C works because of an accident of M2-Planet's code
 generator, and comes with a rule that has to be kept by hand. M2-Planet saves

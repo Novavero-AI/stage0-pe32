@@ -107,3 +107,52 @@ jobs:
           $got = [IO.File]::ReadAllText((Join-Path $PWD 'artifact/exit-flush.txt'))
           if ($got -ne "flushed`n") { throw "exit-flush.txt holds '$got', not the line the program wrote" }
           "exit-flush.txt holds the line the program wrote and never closed"
+
+      # chmod keeps the owner execute bit as the nova.exec stream beside a
+      # file, which nova-nix reads as the executable bit of a Nix archive. The
+      # program calls chmod once on its arguments and is linked by hex2-new,
+      # whose own chmod(output, 0750) has to mark it. PowerShell reads the
+      # streams through Win32, not through M2libc. x is a one-letter name,
+      # which Win32 would read as a drive with :nova.exec after it. The modes
+      # are quoted so that each reaches the program as the octal it reads.
+      - name: chmod sets and clears the executable bit
+        shell: pwsh
+        working-directory: x86
+        run: |
+          function step { & $args[0] @($args | Select-Object -Skip 1); if ($LASTEXITCODE -ne 0) { throw "$($args[0]) exited $LASTEXITCODE" } }
+          function marked($path) { [bool](Get-Item -LiteralPath $path -Stream nova.exec -ErrorAction SilentlyContinue) }
+          $libc = 'sys/types.h', 'stddef.h', 'sys/utsname.h', 'x86/windows/ntdll.c',
+            'x86/windows/unistd.c', 'x86/windows/process.c', 'x86/windows/fcntl.c', 'fcntl.c',
+            'x86/windows/sys/stat.c', 'ctype.c', 'stdlib.c', 'stdarg.h', 'stdio.h', 'stdio.c',
+            'bootstrappable.c' | ForEach-Object { '-f'; "../M2libc/$_" }
+          step ./artifact/M2.exe --architecture x86 -D __windows__=1 @libc `
+            -f Development/chmod-test.c -o artifact/chmod-test.M1
+          step ./artifact/catm.exe artifact/chmod-test-0.M1 ../M2libc/x86/x86_defs.M1 `
+            libc-core.M1 libc-full.M1 artifact/chmod-test.M1 pe-end-shim.M1
+          step ./artifact/M0.exe artifact/chmod-test-0.M1 artifact/chmod-test.hex2
+          step ./artifact/hex2-new.exe --architecture x86 --little-endian --base-address '0x400000' `
+            -f PE32-i386.hex2 -f ntdll-i386.hex2 -f artifact/chmod-test.hex2 -o artifact/chmod-test.exe
+          if (-not (marked artifact/chmod-test.exe)) { throw "hex2 did not mark chmod-test.exe" }
+          Push-Location artifact
+          try {
+            Set-Content -LiteralPath chmod.txt -Value 'chmod' -NoNewline
+            step ./chmod-test.exe '0755' chmod.txt
+            if (-not (marked chmod.txt)) { throw "chmod 0755 did not mark chmod.txt" }
+            $held = Get-Content -LiteralPath chmod.txt -Stream nova.exec -Raw
+            if ($held -ne '1') { throw "chmod.txt:nova.exec holds '$held', not 1" }
+            step ./chmod-test.exe '0755' chmod.txt
+            if (-not (marked chmod.txt)) { throw "a second chmod 0755 unmarked chmod.txt" }
+            step ./chmod-test.exe '0644' chmod.txt
+            if (marked chmod.txt) { throw "chmod 0644 left chmod.txt marked" }
+            step ./chmod-test.exe '0644' chmod.txt
+            if (marked chmod.txt) { throw "a second chmod 0644 marked chmod.txt" }
+            $body = Get-Content -LiteralPath chmod.txt -Raw
+            if ($body -ne 'chmod') { throw "chmod.txt holds '$body', not what was written to it" }
+            & ./chmod-test.exe '0755' missing.txt
+            if ($LASTEXITCODE -ne 1) { throw "chmod 0755 on a missing file exited $LASTEXITCODE, not 1" }
+            if (Test-Path -LiteralPath missing.txt) { throw "chmod 0755 on a missing file made it" }
+            Set-Content -LiteralPath x -Value 'x' -NoNewline
+            step ./chmod-test.exe '0755' x
+            if (-not (marked x)) { throw "chmod 0755 did not mark x" }
+          } finally { Pop-Location }
+          "chmod marks and unmarks a file, fails on a missing one, and hex2 marks what it links"
