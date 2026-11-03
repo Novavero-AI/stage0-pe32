@@ -118,7 +118,41 @@ rem still read them by name directly (fn_create and friends), unaffected.
 "%ART%\catm.exe" "%ART%\hex2_linker-0.hex2" "%HERE%PE32-i386.hex2" "%HERE%ntdll-i386.hex2" "%ART%\hex2_linker.hex2" || goto :fail
 "%ART%\hex2.exe" "%ART%\hex2_linker-0.hex2" "%ART%\hex2-new.exe" || goto :fail
 
-echo Built: hex0 hex1 hex2 catm M0 cc_x86 M2 M1 hex2-new
+rem Phase-8  kaem, the shell upstream drives this sequence with.  cmd.exe
+rem drives it here, so nothing above needs kaem, but anything that builds on
+rem the chain needs a scripting tool built from source, and kaem is the one
+rem upstream's later stages are written for.  It compiles like hex2-new, plus
+rem string.c, and __windows__ makes it start programs with spawn rather than
+rem fork and read PATH the way Windows writes it.
+"%ART%\M2.exe" --architecture x86 ^
+	-D __windows__=1 ^
+	-f "%HERE%..\M2libc\sys\types.h" ^
+	-f "%HERE%..\M2libc\stddef.h" ^
+	-f "%HERE%..\M2libc\sys\utsname.h" ^
+	-f "%HERE%..\M2libc\x86\windows\ntdll.c" ^
+	-f "%HERE%..\M2libc\x86\windows\unistd.c" ^
+	-f "%HERE%..\M2libc\x86\windows\process.c" ^
+	-f "%HERE%..\M2libc\x86\windows\fcntl.c" ^
+	-f "%HERE%..\M2libc\fcntl.c" ^
+	-f "%HERE%..\M2libc\x86\windows\sys\stat.c" ^
+	-f "%HERE%..\M2libc\ctype.c" ^
+	-f "%HERE%..\M2libc\stdlib.c" ^
+	-f "%HERE%..\M2libc\string.c" ^
+	-f "%HERE%..\M2libc\stdarg.h" ^
+	-f "%HERE%..\M2libc\stdio.h" ^
+	-f "%HERE%..\M2libc\stdio.c" ^
+	-f "%HERE%..\M2libc\bootstrappable.c" ^
+	-f "%HERE%..\mescc-tools\Kaem\kaem.h" ^
+	-f "%HERE%..\mescc-tools\Kaem\variable.c" ^
+	-f "%HERE%..\mescc-tools\Kaem\kaem_globals.c" ^
+	-f "%HERE%..\mescc-tools\Kaem\kaem.c" ^
+	-o "%ART%\kaem.M1" || goto :fail
+"%ART%\catm.exe" "%ART%\kaem-0.M1" "%HERE%..\M2libc\x86\x86_defs.M1" "%HERE%libc-core.M1" "%HERE%libc-full.M1" "%ART%\kaem.M1" "%HERE%pe-end-shim.M1" || goto :fail
+"%ART%\M0.exe" "%ART%\kaem-0.M1" "%ART%\kaem.hex2" || goto :fail
+"%ART%\catm.exe" "%ART%\kaem-0.hex2" "%HERE%PE32-i386.hex2" "%HERE%ntdll-i386.hex2" "%ART%\kaem.hex2" || goto :fail
+"%ART%\hex2.exe" "%ART%\kaem-0.hex2" "%ART%\kaem.exe" || goto :fail
+
+echo Built: hex0 hex1 hex2 catm M0 cc_x86 M2 M1 hex2-new kaem
 exit /b 0
 
 :fail

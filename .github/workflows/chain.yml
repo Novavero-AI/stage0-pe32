@@ -47,3 +47,7 @@ jobs:
           if ($seed -ne $hex0) { throw "hex0.exe is not the seed: $hex0, expected $seed" }
           if ($hex0 -eq $hex1) { throw "hex0.exe and hex1.exe match, so this comparison proves nothing" }
           Get-FileHash x86/artifact/*.exe | ForEach-Object { "$($_.Hash)  $(Split-Path -Leaf $_.Path)" }
+
+      - name: kaem passes its own tests
+        shell: pwsh
+        run: x86/kaem-test.ps1

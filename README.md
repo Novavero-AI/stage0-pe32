@@ -26,6 +26,7 @@ reading, from the bottom up.
     M2-Planet                                 a fuller C compiler, in C
     mescc-tools/M1-macro.c                    M1-macro, a fuller assembler, in C
     mescc-tools/hex2_linker.c                 hex2 again, in C, without the fixed table
+    mescc-tools/Kaem/kaem.c                   kaem, a shell, in C
 
 | link | adds |
 | ---- | ---- |
@@ -38,6 +39,7 @@ reading, from the bottom up.
 | M2-Planet | the rest of the C this project's programs are written in |
 | M1-macro | more label and pointer widths, and every architecture stage0 supports, in one binary |
 | hex2 (from C) | the same linker without the hand-written one's fixed label table |
+| kaem | a shell built from source, for what builds on the chain |
 
 ## Building
 
@@ -45,7 +47,7 @@ Clone with submodules -- from cc_x86 up, the build compiles C, and M2-Planet,
 M2libc, mescc-tools and mescc-tools-extra are vendored as submodules rather
 than by hand.  mescc-tools-extra is upstream's exactly as upstream wrote it.
 M2libc is a fork that carries the `x86/windows/` target and a Windows path in
-`_malloc_brk`, mescc-tools a fork that carries two changes to kaem, and
+`_malloc_brk`, mescc-tools a fork that carries three changes to kaem, and
 M2-Planet a fork that carries two general fixes, all described where they
 matter below:
 
@@ -93,13 +95,23 @@ image with ERROR_BAD_EXE_FORMAT. `SizeOfRawData`, which the format says must be
 a multiple of `FileAlignment`, is left as the exact length of the program, and
 that Windows does accept. Both of these were measured rather than assumed.
 
-This chain does not use kaem: cmd.exe drives it, see Building above. That is
-about the chain and not about kaem, and something building *on* this chain --
-nova-nix, which has no cmd.exe to reach for -- does want one. What it takes is
-`spawn` in `M2libc/x86/windows/process.c`, which starts a program and waits
-for it in one step because Windows cannot fork; kaem reaches for it under
-`__windows__`, beside the `__uefi__` that is the only other occurrence of the
-idea in its 1494 lines. Both changes are in the forks named under Building.
+This chain does not use kaem: cmd.exe drives it, see Building above. Its last
+link builds kaem all the same, for what builds *on* the chain: nova-nix, which
+has no cmd.exe to reach for, wants a shell that is itself built from source.
+kaem needs three changes here, all under `__windows__`. It starts a program
+with `spawn` in `M2libc/x86/windows/process.c`, which starts it and waits for
+it in one step because Windows cannot fork, beside the `__uefi__` that is the
+only other place kaem does the same. It splits PATH on semicolons and tries a
+name with `.exe` after it. And as it reads the environment it renames `Path`,
+the name Windows gives the search path, to PATH, the name kaem and its scripts
+use. The changes are in the mescc-tools fork named under Building.
+
+    x86\kaem-test.ps1
+
+runs kaem's own tests, `mescc-tools/Kaem/test`, against the kaem the chain
+built, and checks each output against the hashes upstream recorded. Four of
+them run `printf`, which they find on the search path; Git for Windows
+provides one.
 
 ## Where the sources come from
 
@@ -135,7 +147,7 @@ From cc_x86 up, the chain compiles C rather than hand-written assembly, and the
 C it compiles first is M2-Planet's own: `M2-Planet/`, `M2libc/` and
 `mescc-tools/` are git submodules. Each follows upstream's default branch, with
 the commits upstream has not taken yet on top. Almost nothing in them is
-Windows-specific: mescc-tools needs two changes to kaem, and M2libc needs the
+Windows-specific: mescc-tools needs three changes to kaem, and M2libc needs the
 `x86/windows/` target this project wrote and a Windows path in `_malloc_brk`.
 
 M2-Planet needs nothing Windows-specific either, but carries two fixes that
