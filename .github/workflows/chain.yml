@@ -80,3 +80,30 @@ jobs:
             if ($want -ne $got) { throw "$exe is $got, $($tool.name).exe is $want" }
             "$got  $($tool.name).exe, rebuilt by M1 and hex2"
           }
+
+      # Returning from main is an exit, so a stream nothing closed is flushed
+      # before the process ends. The program writes a line to a file through
+      # stdio and returns without closing it, built the way Phase-7 builds
+      # hex2-new.
+      - name: Returning from main flushes stdio
+        shell: pwsh
+        working-directory: x86
+        run: |
+          function step { & $args[0] @($args | Select-Object -Skip 1); if ($LASTEXITCODE -ne 0) { throw "$($args[0]) exited $LASTEXITCODE" } }
+          $libc = 'sys/types.h', 'stddef.h', 'sys/utsname.h', 'x86/windows/ntdll.c',
+            'x86/windows/unistd.c', 'x86/windows/process.c', 'x86/windows/fcntl.c', 'fcntl.c',
+            'x86/windows/sys/stat.c', 'ctype.c', 'stdlib.c', 'stdarg.h', 'stdio.h', 'stdio.c',
+            'bootstrappable.c' | ForEach-Object { '-f'; "../M2libc/$_" }
+          step ./artifact/M2.exe --architecture x86 -D __windows__=1 @libc `
+            -f Development/exit-flush-test.c -o artifact/exit-flush-test.M1
+          step ./artifact/catm.exe artifact/exit-flush-test-0.M1 ../M2libc/x86/x86_defs.M1 `
+            libc-core.M1 libc-full.M1 artifact/exit-flush-test.M1 pe-end-shim.M1
+          step ./artifact/M0.exe artifact/exit-flush-test-0.M1 artifact/exit-flush-test.hex2
+          step ./artifact/catm.exe artifact/exit-flush-test-0.hex2 PE32-i386.hex2 ntdll-i386.hex2 `
+            artifact/exit-flush-test.hex2
+          step ./artifact/hex2.exe artifact/exit-flush-test-0.hex2 artifact/exit-flush-test.exe
+          Push-Location artifact
+          try { step ./exit-flush-test.exe } finally { Pop-Location }
+          $got = [IO.File]::ReadAllText((Join-Path $PWD 'artifact/exit-flush.txt'))
+          if ($got -ne "flushed`n") { throw "exit-flush.txt holds '$got', not the line the program wrote" }
+          "exit-flush.txt holds the line the program wrote and never closed"
