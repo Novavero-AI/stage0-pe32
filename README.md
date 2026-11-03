@@ -47,7 +47,7 @@ Clone with submodules -- from cc_x86 up, the build compiles C, and M2-Planet,
 M2libc, mescc-tools and mescc-tools-extra are vendored as submodules rather
 than by hand.  mescc-tools-extra is upstream's exactly as upstream wrote it.
 M2libc is a fork that carries the `x86/windows/` target and a Windows path in
-`_malloc_brk`, mescc-tools a fork that carries three changes to kaem, and
+`_malloc_brk`, mescc-tools a fork that carries kaem's Windows changes, and
 M2-Planet a fork that carries two general fixes, all described where they
 matter below.
 
@@ -108,13 +108,22 @@ that Windows does accept. Both of these were measured rather than assumed.
 This chain does not use kaem: cmd.exe drives it, see Building above. Its last
 link builds kaem all the same, for what builds *on* the chain: nova-nix, which
 has no cmd.exe to reach for, wants a shell that is itself built from source.
-kaem needs three changes here, all under `__windows__`. It starts a program
-with `spawn` in `M2libc/x86/windows/process.c`, which starts it and waits for
-it in one step because Windows cannot fork, beside the `__uefi__` that is the
-only other place kaem does the same. It splits PATH on semicolons and tries a
-name with `.exe` after it. And as it reads the environment it renames `Path`,
-the name Windows gives the search path, to PATH, the name kaem and its scripts
-use. The changes are in the mescc-tools fork named under Building.
+kaem's changes for Windows are all under `__windows__`, in the mescc-tools fork
+named under Building:
+
+- It starts a program with `spawn` from `M2libc/x86/windows/process.c`, which
+  starts it and waits for it in one step, as kaem does on UEFI. Windows has no
+  call that replaces a running program, so `execve` there starts the program
+  as a new process, waits for it and exits with its status, and `fork` then
+  `execve` would make two processes for every command where `spawn` makes one.
+  `exec` calls that `execve`, so a script ends at `exec` as it does on POSIX.
+- A name that starts with `.` or `/`, or whose second character is a colon
+  (`C:/tools/foo.exe`), is a path, and kaem runs it exactly as written, so a
+  path to a program has to name its `.exe`. Any other name it looks for in
+  each directory of PATH, which it splits on semicolons, first as given and
+  then with `.exe` after it.
+- As it reads the environment it renames `Path`, the name Windows gives the
+  search path, to PATH, the name kaem and its scripts use.
 
 `x86\kaem-test.ps1` runs kaem's own tests, `mescc-tools/Kaem/test`, against
 the kaem the chain built. It takes each test and its flags from
@@ -161,8 +170,9 @@ From cc_x86 up, the chain compiles C rather than hand-written assembly, and the
 C it compiles first is M2-Planet's own: `M2-Planet/`, `M2libc/` and
 `mescc-tools/` are git submodules. Each follows upstream's default branch, with
 the commits upstream has not taken yet on top. Almost nothing in them is
-Windows-specific: mescc-tools needs three changes to kaem, and M2libc needs the
-`x86/windows/` target this project wrote and a Windows path in `_malloc_brk`.
+Windows-specific: mescc-tools needs kaem's changes listed above, and M2libc
+needs the `x86/windows/` target this project wrote and a Windows path in
+`_malloc_brk`.
 
 M2-Planet needs nothing Windows-specific either, but carries two fixes that
 are not. The first: `&&` and `||` were compiled as the exact same instruction as `&`
@@ -268,76 +278,48 @@ jumps to zero with nothing to say where it came from. That cost three
 debugging rounds in one sitting, so `x86/Development/check_fnptr_args.py`
 fails on one now, and is checked against all three.
 
-`M2libc/x86/windows/process.c` is starting another program and waiting for it.
+`M2libc/x86/windows/process.c` is starting another program and waiting for it,
+and `fork`.
 
-`fork` works here, and not by any of the means Windows offers for it. Windows'
-own fork primitive does not work at all, for reasons worth writing down and
-written down below; what `fork` does instead is start this same program again
-and overwrite the copy with this one. That is how Cygwin has always done it,
-and it is possible here for a reason particular to this bootstrap:
+`fork` is `__clone_process_wow64fix`: Windows' own clone call,
+`RtlCloneUserProcess`, with the child's one thread set up before it runs. The
+clone has its parent's whole address space, so the child comes back from
+`fork` with 0, on its parent's stack and with its parent's memory, and the
+parent gets the child's process handle. Left alone, the child of a 32-bit clone
+on 64-bit Windows hangs or dies in its loader init, for the reasons the next
+section sets out. So `fork` clones with the child's thread suspended and,
+before letting it go, starts that thread at `wow64cpu!BTCpuSimulate`, the entry
+to the loop that runs 32-bit code, sets its 32-bit `Eax` to
+`STATUS_PROCESS_CLONED`, the status a clone's child returns with, and clears a
+lock in the child's `ntdll` that the parent held across the clone.
 
-`x86/PE32-i386.hex2` sets `IMAGE_FILE_RELOCS_STRIPPED` and does not set
-`DYNAMIC_BASE`, so there is no relocation and no address-space layout
-randomisation. The image is at `0x400000` in every process that runs it, it
-runs to 128MB with code, globals and heap all inside it and all writable, and
-even the stack the kernel hands out lands at the same address every time. So a
-second copy of the same program is laid out identically to the first, and
-copying memory from one into the other needs no fixups of any kind -- a pointer
-means the same thing on both sides. A program built the ordinary way,
-relocatable and randomised, could not do this. This one can only do it.
+What it rests on:
 
-The child's whole stack reservation -- 2MB, the `SizeOfStackReserve` the header
-writes -- is committed before anything is copied into it. Committing only what
-the parent had committed is not enough, and the reason is the guard page:
-Windows grows a stack by keeping a `PAGE_GUARD` page below what is committed
-and committing one more when it is touched, and the child's guard page sits
-high, where its own short stack ended, inside the range being written. Overwrite
-it and the child has no guard anywhere, so the first call reaching past the
-copied region touches reserved memory and dies instead of growing. That is what
-a child which forked deep and then recursed did.
+- The lock is found at a fixed distance from `RtlCloneUserProcess`, taken from
+  one Windows 11 machine's `ntdll` rather than looked up.
+- Wine does not export `RtlCloneUserProcess`, so there `fork` returns -1.
+- In a process with no `wow64cpu.dll` among its 64-bit modules, `fork` is the
+  plain clone, `__clone_process`, which has not been measured running.
+- `x86/Development/fork-test.c`, `fork-file-test.c`, `fork-deep-test.c` and
+  `fork-many-test.c` exercise it: the child's copy of a local and of something
+  malloc handed out, its output landing in the parent's stream, a file its
+  parent opened, a fork from deep in a call chain, a hundred forks in a row,
+  `waitpid` bringing back what the child exited with, and `fork` with `execve`
+  after it. CI does not run them.
 
-The awkward part is that the child has its own loader init to run, on that same
-stack, before it can be trusted with anything -- so it is made to run all of its
-own startup first and then stop dead. `_start` reads one word: a flag the parent
-writes into it before letting it go, which is the only thing distinguishing a
-fork child from an ordinary run. Seeing it set, the child does its loader init,
-resolves ntdll, sets up the C library, and then parks in a spin instead of
-calling `main`, saying so in a second word the parent watches. Its startup is
-over and its stack is finished with. The parent suspends it, copies the image
-from `0x401000` to the top of the heap and then its own committed stack over the
-child's spent one, points the child's thread at where `fork` was going to return
-with `0` in `EAX`, and lets it go. It comes up believing `fork` has just
-returned 0, on its parent's stack, with its parent's memory.
-
-Two details, because both cost a debugging round. The copy starts at
-`0x401000` rather than the image base, because the page below is the PE header,
-which the loader maps read-only; writing there answers `STATUS_PARTIAL_COPY`.
-And the child is aimed at `fork`'s *caller*, not back into `fork` -- this
-dialect begins every function with `mov_esi,esp`, so `[ESI]` is where `fork`
-returns to and `ESI+4` is the stack its caller will have, and that frame is
-above everything `fork`'s own later calls reuse. Aiming into `fork`'s middle
-resumes onto slots the spawn and the copies have long since overwritten.
-
-A file the parent had open is open in the child, at the same descriptor. That
-is why the shared `open_file` asks for `OBJ_INHERIT`: an inheritable handle is
-the one kind a child receives, and it receives it under the *same number*,
-which is what keeps the number the copied memory is holding meaningful. POSIX
-hands every descriptor to a child across both fork and exec unless it is marked
+A file the parent had open is open in the child, at the same descriptor.
+`fork` asks the clone to inherit handles, and that is why the shared
+`open_file` asks for `OBJ_INHERIT`: an inheritable handle is the one kind a
+child receives, and it receives it under the *same number*, which is what keeps
+the number in the child's copy of memory meaningful. POSIX hands every
+descriptor to a child across both fork and exec unless it is marked
 `FD_CLOEXEC`, and there is no `FD_CLOEXEC` here to ask for the other behaviour.
 Only the shared copy asks for it: `hex0`, `hex1`, `hex2` and `catm` carry their
 own `open_file`, none of them forks, and `hex0`'s bytes *are* the seed the
 chain is checked against -- so changing theirs would move the trust anchor to
 no purpose.
 
-What it does not do: the child is a second process as far as Windows is
-concerned, with its own pid and its own parent, so nothing that asks Windows
-rather than this library will see a fork.
-
-`x86/Development/fork-test.c` exercises it -- a local, something malloc handed
-out, the child's output landing in the parent's stream, `waitpid` bringing back
-what the child exited with, and `fork` with `execve` after it.
-
-## Windows' own fork primitive, and why it is not used
+## Windows' own fork primitive
 
 Windows does have a fork primitive. `NtCreateProcessEx` given a parent and no
 section handle clones the parent's address space instead of mapping an image --
@@ -352,8 +334,8 @@ built on the other -- so a defect found in one says nothing about the other.
 a thread in the result and is meant to return in both processes, handing the
 child `STATUS_PROCESS_CLONED` where the parent gets `STATUS_SUCCESS`.
 
-It does not work, by any of the four routes in, all measured on Windows 11
-22621:
+Called plainly, it does not work, by any of the four routes in, all measured
+on Windows 11 22621:
 
 | | |
 | --- | --- |
@@ -804,58 +786,29 @@ for a clone to lose. A 32-bit thread on the same machine reaches its TEB through
 the WOW64 half of process cloning. The suggestion above that an x86_64 port
 should ask this question again now rests on a measurement instead of on hope.
 
-So, for a 32-bit program on a 64-bit Windows, a copy-on-write `fork` is out of
-reach from user mode, by both roads and for two unrelated reasons: the
-`NtCreateProcessEx` clone is refused a thread as a matter of kernel policy, and
-the `ZwCreateUserProcess` clone is given a thread with no `FS` base. Neither is
-something a caller can hold differently. The `fork` above copies, and will go on
-copying.
+So for a 32-bit program on a 64-bit Windows, the `NtCreateProcessEx` clone is
+refused a thread as a matter of kernel policy, and nothing a caller does
+changes that. The `ZwCreateUserProcess` clone, the one `RtlCloneUserProcess`
+makes, is given a thread with no `FS` base, and that one a caller can reach
+past. `wow64cpu!RunSimulatedCode`, the loop that runs 32-bit code, does not
+take `r13` and `r15` as arguments: it loads them itself, from the thread's own
+TEB and CPU area, on every entry. So the cloned thread can be started at its
+exported entry, `BTCpuSimulate`, from user mode, with a native
+`NtSetContextThread` called through a 32-to-64-to-32 trampoline (the
+WOW64-thunked one reaches only the 32-bit CPU-area `CONTEXT`), and with the
+ordinary `NtSetContextThread` setting `Eax` to `STATUS_PROCESS_CLONED`. That
+alone deadlocks on a second lock: `RtlCloneUserProcess` holds an internal
+`ntdll` lock across the clone system call, and the branch its child takes never
+releases it. Zeroing that lock's four bytes in the child before resuming it is
+the rest. With both, the clone was measured running ordinary 32-bit code and
+returning `STATUS_PROCESS_CLONED`. That is `__clone_process_wow64fix`, which is
+`fork`; `__clone_process` beside it is the unfixed clone.
 
-So `fork` stops here, at an FS with no base, for a reason not yet pinned on
-either Windows or this code. Whichever it is, nothing in reach fixes it from
-user mode: a segment base lives in a descriptor the kernel owns, and the `SegFs`
-in a 32-bit `CONTEXT` is the selector, which is already right.
-
-The `r15` finding does not depend on any of this. That one was measured with no
-clone anywhere near it, and it stands on its own.
-
-An earlier version of this section said the failure was "neither this port's
-doing nor WOW64's", on the strength of the same call failing from 64-bit
-PowerShell. That was the wrong conclusion from a true observation: the
-PowerShell child was stopped by the inherited lock, a different failure, and one
-since fixed here. Being 32-bit on a 64-bit Windows is at least what the `r15`
-objection is. A native x86_64 program has no WOW64 layer -- `syscall` for system
-calls, and its TEB through `GS`, whose base the kernel programs for every thread
--- so the question is worth asking again, from scratch, in an x86_64 port.
-
-That "out of reach from user mode" verdict two paragraphs up was wrong about
-the `ZwCreateUserProcess` half. `wow64cpu!RunSimulatedCode` -- the loop that
-actually runs 32-bit code -- does not take `r13`/`r15` as arguments; it loads
-them itself, from the thread's own TEB and CPU area, on every entry. So a
-cloned thread's initial context can be pointed straight at
-`RunSimulatedCode`'s own exported entry, `BTCpuSimulate`, from user mode: a
-native `NtSetContextThread` call (through a heaven's-gate 32-to-64-to-32
-trampoline, since the ordinary WOW64-thunked one only reaches the 32-bit
-CPU-area `CONTEXT`) plus the ordinary `NtSetContextThread` this port already
-uses elsewhere, to force `Eax` to `STATUS_PROCESS_CLONED`. That alone still
-deadlocked, on a second, unrelated lock: `RtlCloneUserProcess` holds an
-internal `ntdll` lock across the clone syscall that its own child-side branch
-never releases, and the child hangs forever trying to re-acquire it. Zeroing
-that one lock's four bytes in the child before resuming is the rest of the
-fix, and it is measured, not hoped: the clone runs ordinary 32-bit code past
-the point that fault used to end at, and returns `STATUS_PROCESS_CLONED`
-correctly. `M2libc/x86/windows/process.c`'s `__clone_process_wow64fix` is
-the whole of it; `x86/Development/wow64-clone-driver.md` has the disassembly.
-`NtCreateProcessEx` is still refused a thread regardless -- that half of the
-verdict stands.
-
-`__clone_process` keeps the call and the measurements for the plain,
-unfixed clone, and is still not called; `__clone_process_wow64fix` next to it
-is, now, and `fork` below prefers it whenever `RtlCloneUserProcess` resolves
-at all, WOW64 or not -- on a genuine 32-bit Windows the WOW64-specific gate
-and lock fixup are skipped outright, since the defect they exist for has
-nowhere to come from there. `fork` falls back to copying only when the clone
-path itself fails.
+The `r15` finding does not depend on any of this. It was measured with no clone
+anywhere near it, and it is why `SKIP_LOADER_INIT` is no way to a 32-bit fork.
+A native x86_64 program has no WOW64 layer (`syscall` for system calls, and its
+TEB through `GS`, whose base the kernel programs for every thread), so an
+x86_64 port would have to ask the whole question again from scratch.
 
 So four calls, and a caller wanting a child may say either what POSIX says or
 the shorter thing Windows can do directly:
@@ -870,13 +823,12 @@ the cheaper way to say the same thing when the child is only ever going to
 exec: one process where fork plus execve is two.
 
 A pid is the process handle, the way a file descriptor is a file handle.
-`execve` does not replace the running image, because nothing on Windows can,
-but it does not return either and the process's exit status is the child's.
-A caller that today says `fork()` then `execve` in the child and `waitpid` in
-the parent says `__spawn` then `waitpid` instead, and needs no fork. `spawn`
-beside them is exactly that pair, under the name M2libc's UEFI target already
-gives it -- UEFI cannot fork either -- and it is what `kaem` now uses.
-M2-Mesoplanet would want the same change.
+`execve` does not replace the running image, because nothing on Windows can:
+it starts the program, waits for it and exits with its status, so it does not
+return and the process's exit status is the child's. `spawn` beside them is
+`__spawn` then `waitpid` in one call, returning what the program exited with,
+under the name M2libc's UEFI target gives it, and it is what kaem uses for
+every command but `exec`. M2-Mesoplanet would want the same change.
 
 The child inherits this process's three standard handles, which is what makes
 redirection possible, and getting that right took one thing beyond the obvious.
