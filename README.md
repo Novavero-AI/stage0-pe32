@@ -49,11 +49,21 @@ than by hand.  mescc-tools-extra is upstream's exactly as upstream wrote it.
 M2libc is a fork that carries the `x86/windows/` target and a Windows path in
 `_malloc_brk`, mescc-tools a fork that carries three changes to kaem, and
 M2-Planet a fork that carries two general fixes, all described where they
-matter below:
+matter below.
 
+The chain and kaem's tests read their files byte for byte as committed. Git
+for Windows installs with `core.autocrlf` set to `true`, which checks text
+files out with CRLF line endings, so turn it off before cloning:
+
+    git config --global core.autocrlf false
     git clone --recurse-submodules <this repo>
 
-On x64 or ARM64 Windows:
+`git -c core.autocrlf=false clone --recurse-submodules <this repo>` checks out
+the submodules unchanged too and leaves the global setting alone, but it
+applies to that one command: a later checkout or `git submodule update`
+without it writes CRLF again.
+
+From the root of the clone, on x64 or ARM64 Windows:
 
     x86\mescc-tools-mini.cmd
 
@@ -106,12 +116,16 @@ name with `.exe` after it. And as it reads the environment it renames `Path`,
 the name Windows gives the search path, to PATH, the name kaem and its scripts
 use. The changes are in the mescc-tools fork named under Building.
 
-    x86\kaem-test.ps1
+`x86\kaem-test.ps1` runs kaem's own tests, `mescc-tools/Kaem/test`, against
+the kaem the chain built. It takes each test and its flags from
+`mescc-tools/Kaem/test.sh` and checks each output against the hashes in
+`test.answers`. It needs PowerShell 7, and a `printf` on the search path for
+the tests that run one. Git for Windows has `printf.exe` in its `usr\bin`,
+which a default install leaves off the search path. After the build, at
+cmd.exe, from the root of the clone:
 
-runs kaem's own tests, `mescc-tools/Kaem/test`, against the kaem the chain
-built, and checks each output against the hashes upstream recorded. Four of
-them run `printf`, which they find on the search path; Git for Windows
-provides one.
+    set PATH=%PATH%;C:\Program Files\Git\usr\bin
+    pwsh x86\kaem-test.ps1
 
 ## Where the sources come from
 
