@@ -182,3 +182,31 @@ jobs:
           step ./artifact/hex2.exe artifact/malloc-align-test-0.hex2 artifact/malloc-align-test.exe
           step ./artifact/malloc-align-test.exe
           "every block malloc and calloc returned is 8-byte aligned"
+
+      # A file opens to read while another handle on it can write, as POSIX
+      # allows. GNU Mes keeps each file it writes open until it exits, and
+      # MesCC runs M1 on the assembly it has just written, which M1 could not
+      # open while open() shared it for reading alone. The program opens
+      # share.txt to write, writes a line, and opens it again to read with the
+      # first still open; it exits 1 if that open fails or the line does not
+      # read back.
+      - name: A file opens to read while it is open to write
+        shell: pwsh
+        working-directory: x86
+        run: |
+          function step { & $args[0] @($args | Select-Object -Skip 1); if ($LASTEXITCODE -ne 0) { throw "$($args[0]) exited $LASTEXITCODE" } }
+          $libc = 'sys/types.h', 'stddef.h', 'sys/utsname.h', 'x86/windows/ntdll.c',
+            'x86/windows/unistd.c', 'x86/windows/process.c', 'x86/windows/fcntl.c', 'fcntl.c',
+            'x86/windows/sys/stat.c', 'ctype.c', 'stdlib.c', 'stdarg.h', 'stdio.h', 'stdio.c',
+            'bootstrappable.c' | ForEach-Object { '-f'; "../M2libc/$_" }
+          step ./artifact/M2.exe --architecture x86 -D __windows__=1 @libc `
+            -f Development/share-test.c -o artifact/share-test.M1
+          step ./artifact/catm.exe artifact/share-test-0.M1 ../M2libc/x86/x86_defs.M1 `
+            libc-core.M1 libc-full.M1 artifact/share-test.M1 pe-end-shim.M1
+          step ./artifact/M0.exe artifact/share-test-0.M1 artifact/share-test.hex2
+          step ./artifact/catm.exe artifact/share-test-0.hex2 PE32-i386.hex2 ntdll-i386.hex2 `
+            artifact/share-test.hex2
+          step ./artifact/hex2.exe artifact/share-test-0.hex2 artifact/share-test.exe
+          Push-Location artifact
+          try { step ./share-test.exe } finally { Pop-Location }
+          "share.txt opened to read while it was open to write, and the line read back"
