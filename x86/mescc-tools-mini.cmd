@@ -38,8 +38,9 @@ rem This is the last link written by hand; everything above it is compiled.
 "%ART%\hex2.exe" "%ART%\cc_x86.hex2" "%ART%\cc_x86.exe" || goto :fail
 
 rem Phase-5  M2-Planet, a C compiler with more of the language than cc_x86 has.
-rem M2-Planet and M2libc\bootstrappable.c are upstream's, unmodified, vendored
-rem as git submodules.  M2libc\x86\windows\bootstrap.c -- this project's own
+rem M2-Planet, a fork carrying two general fixes (see the README), and
+rem M2libc\bootstrappable.c, unmodified, are vendored as git submodules.
+rem M2libc\x86\windows\bootstrap.c -- this project's own
 rem port of M2libc\x86\linux\bootstrap.c, and the only Windows-specific piece
 rem this phase needs -- lives in the M2libc fork (see .gitmodules) alongside
 rem the rest of this Windows port, rather than in this tree.
