@@ -1,1 +1,0 @@
-spawned pid = 0x44, child exited with 0
