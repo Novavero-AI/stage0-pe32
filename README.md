@@ -51,7 +51,7 @@ matter below:
 
     git clone --recurse-submodules <this repo>
 
-On Windows:
+On x64 or ARM64 Windows:
 
     x86\mescc-tools-mini.cmd
 
