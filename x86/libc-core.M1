@@ -36,11 +36,15 @@
 # What it does not have is the one thing that differs between the two C
 # libraries built on it.  M2libc's own stdio.c keeps stdin, stdout and stderr
 # in globals that a function has to fill in, and bootstrap.c has no such
-# notion; so _start calls :__libc_init, and which file catm puts next to this
-# one decides what that is:
+# notion; so _start calls :__libc_init before main and :__libc_fini after it,
+# and which file catm puts next to this one decides what they are:
 #
 #   libc-bootstrap.M1  nothing to do, for the --bootstrap-mode stages
-#   libc-full.M1       __init_malloc and __init_io, for the rest
+#   libc-full.M1       __init_malloc and __init_io before main, and __kill_io
+#                      after it, for the rest
+#
+# __libc_fini is what makes returning from main an exit, as C requires: a
+# stream nothing closed is flushed before the process ends.
 #
 # Leaving it out is not a link error -- M0 would resolve nothing and hex2 would
 # fail -- but leaving out the *full* one and using the bootstrap one by mistake
@@ -269,6 +273,7 @@ DEFINE test_ebx,ebx 85DB
 	call %FUNCTION_main
 
 	push_eax                                    ; ExitStatus = whatever main returned
+	call %__libc_fini                           ; Whatever the C library above wants done on the way out
 	push_byte !-1                               ; ProcessHandle = NtCurrentProcess pseudo-handle
 	call_[DWORD] &fn_exit                       ; Does not return
 

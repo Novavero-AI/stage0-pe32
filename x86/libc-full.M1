@@ -5,8 +5,9 @@
 # Additional permission under GNU GPL version 3 section 7:
 # see LICENSE.EXCEPTION in the root of this project.
 #
-# libc-full.M1: the :__libc_init that libc-core.M1's _start calls, for a
-# program built against the whole of M2libc rather than bootstrap.c.
+# libc-full.M1: the :__libc_init and :__libc_fini that libc-core.M1's _start
+# calls, for a program built against the whole of M2libc rather than
+# bootstrap.c.
 #
 # The same two calls M2libc/x86/libc-full.M1 makes upstream, and for the same
 # reasons.  __init_malloc empties the free lists, which in an image whose
@@ -19,4 +20,12 @@
 :__libc_init
 	call %FUNCTION___init_malloc                ; Empty the free lists
 	call %FUNCTION___init_io                    ; stdin, stdout and stderr
+	ret
+
+# Returning from main is an exit, so every stream is flushed before the process
+# ends, as upstream's _start falls into exit and its __kill_io.  A program that
+# writes a file through stdio and returns without closing it would otherwise
+# lose whatever was still buffered.
+:__libc_fini
+	call %FUNCTION___kill_io                    ; Flush every stream
 	ret
