@@ -72,7 +72,7 @@ def emit_shared(a):
     emit_find_ntdll(a)
     emit_resolve_export(a)
     emit_next_token(a, tabs=True, escapes=True)
-    emit_open_file(a, check_status=True, inheritable=True)
+    emit_open_file(a, check_status=True, inheritable=True, share_all=True)
 
     def I(hx, mn, prose=None):
         a.raw(bytes.fromhex(hx.replace(" ", "")), a._c(mn, prose))
@@ -213,7 +213,10 @@ RtlDosPathNameToNtPathName_U turns the DOS path into the NT path NtCreateFile
 needs, resolving a relative path against the working directory.
 FILE_SYNCHRONOUS_IO_NONALERT keeps the file position in the I/O manager, which
 is why every read and write passes a NULL ByteOffset and still advances.
-The path is UTF-16, which is the only kind ntdll takes.""",
+The path is UTF-16, which is the only kind ntdll takes.
+It shares the file every way, as a POSIX open is never refused for another
+process having the file open: GNU Mes keeps each file it writes open until
+it exits, and MesCC runs M1 on the assembly it has just written.""",
 "fgetc": """fgetc() -> eax = the next byte of the input, or -4 at end of file.
 -4 rather than -1 because that is what upstream's fgetc returns and what its
 callers compare against.  Every register but eax comes back untouched, which is

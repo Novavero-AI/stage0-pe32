@@ -216,6 +216,9 @@
 # FILE_SYNCHRONOUS_IO_NONALERT keeps the file position in the I/O manager, which
 # is why every read and write passes a NULL ByteOffset and still advances.
 # The path is UTF-16, which is the only kind ntdll takes.
+# It shares the file every way, as a POSIX open is never refused for another
+# process having the file open: GNU Mes keeps each file it writes open until
+# it exits, and MesCC runs M1 on the assembly it has just written.
 :open_file
 	89 0D &g_access             ; mov [g_access], ecx         # stash DesiredAccess
 	89 15 &g_disp               ; mov [g_disp], edx           # stash CreateDisposition
@@ -234,7 +237,7 @@
 	6A 00                       ; push 0x0                    # EaBuffer
 	6A 60                       ; push 0x60                   # CreateOptions = FILE_SYNCHRONOUS_IO_NONALERT|FILE_NON_DIRECTORY_FILE
 	FF 35 &g_disp               ; push dword [g_disp]         # CreateDisposition
-	6A 01                       ; push 0x1                    # ShareAccess = FILE_SHARE_READ
+	6A 07                       ; push 0x7                    # ShareAccess = FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE
 	68 80 00 00 00              ; push 0x80                   # FileAttributes = FILE_ATTRIBUTE_NORMAL (imm32: 6A 80 would sign-extend)
 	6A 00                       ; push 0x0                    # AllocationSize = NULL
 	68 &iosb                    ; push iosb                   # IoStatusBlock

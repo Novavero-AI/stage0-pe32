@@ -694,7 +694,7 @@ def emit_next_token(a, tabs=False, escapes=False):
     I("31 C0", "xor eax, eax", "no token")
     a.ret("ret")
 
-def emit_open_file(a, check_status=False, inheritable=False):
+def emit_open_file(a, check_status=False, inheritable=False, share_all=False):
     """Open one file by DOS path; see the DOC entry.
 
     check_status adds a test of the returned NTSTATUS, so a file that could not
@@ -728,7 +728,17 @@ def emit_open_file(a, check_status=False, inheritable=False):
     a.push_imm(0, "EaLength"); a.push_imm(0, "EaBuffer")
     a.push_imm(0x60, "CreateOptions = FILE_SYNCHRONOUS_IO_NONALERT|FILE_NON_DIRECTORY_FILE")
     a.push_mem("g_disp", "CreateDisposition")
-    a.push_imm(1, "ShareAccess = FILE_SHARE_READ")
+    # A POSIX open is never refused for another process having the file
+    # open, and Windows refuses an open whose share mode leaves out an access
+    # another handle already has: with FILE_SHARE_READ alone, a file cannot be
+    # opened to read while another handle on it can write.  So the shared
+    # copy, which M2libc's open() reaches, shares every way.  hex0, hex1, hex2
+    # and catm keep FILE_SHARE_READ, for the reason they keep their OBJ_INHERIT
+    # off: hex0's bytes are the seed.
+    if share_all:
+        a.push_imm(7, "ShareAccess = FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE")
+    else:
+        a.push_imm(1, "ShareAccess = FILE_SHARE_READ")
     a.push_imm(0x80, "FileAttributes = FILE_ATTRIBUTE_NORMAL (imm32: 6A 80 would sign-extend)")
     a.push_imm(0, "AllocationSize = NULL")
     a.push_lbl("iosb", "IoStatusBlock")
