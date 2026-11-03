@@ -44,8 +44,9 @@ reading, from the bottom up.
 Clone with submodules -- from cc_x86 up, the build compiles C, and M2-Planet,
 M2libc, mescc-tools and mescc-tools-extra are vendored as submodules rather
 than by hand.  mescc-tools-extra is upstream's exactly as upstream wrote it.
-M2libc and mescc-tools are forks that each carry one Windows-shaped change, and
-M2-Planet is a fork that carries two general fixes, all described where they
+M2libc is a fork that carries the `x86/windows/` target and a Windows path in
+`_malloc_brk`, mescc-tools a fork that carries two changes to kaem, and
+M2-Planet a fork that carries two general fixes, all described where they
 matter below:
 
     git clone --recurse-submodules <this repo>
