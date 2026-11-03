@@ -10,8 +10,9 @@
  * argv[1].  It makes and removes posixtest-dir in the working directory.
  *
  * The ones expected to fail are as much the point as the ones expected to
- * work: chroot, mount, unshare, symlink, mknod and fchdir have no Windows
- * answer, and this checks that they say so rather than quietly returning 0.
+ * work: chroot, mount, unshare, symlink, mknod, fchdir and fchmod have no
+ * Windows answer, and this checks that they say so rather than quietly
+ * returning 0.
  */
 
 
@@ -84,8 +85,10 @@ int main(int argc, char** argv)
 		write(fd, "hello", 5);
 		close(fd);
 		ok("access(the new file)", access("posixtest-dir/f", F_OK), 0);
+		ok("chmod(the new file)", chmod("posixtest-dir/f", 0755), 0);
 		ok("unlink(the new file)", unlink("posixtest-dir/f"), 0);
 		ok("access(it again)", access("posixtest-dir/f", F_OK), -1);
+		ok("chmod(it again)", chmod("posixtest-dir/f", 0755), -1);
 	}
 	ok("unlink(the dir)", unlink("posixtest-dir"), 0);
 	ok("unlink(no such)", unlink("no-such-file-anywhere"), -1);
@@ -110,11 +113,10 @@ int main(int argc, char** argv)
 	ok("umask(0) gives back 022", umask(0), 18);
 	ok("geteuid", geteuid(), 0);
 	ok("getegid", getegid(), 0);
-	ok("chmod", chmod(argv[1], 0755), 0);
-	ok("fchmod", fchmod(0, 0755), 0);
 
 	/* the ones with no Windows answer, which must fail rather than lie */
 	ok("fchdir", fchdir(0), -1);
+	ok("fchmod", fchmod(0, 0755), -1);
 	ok("symlink", symlink("a", "b"), -1);
 	ok("mknod", mknod("a", 0, 0), -1);
 	ok("chroot", chroot("/"), -1);
