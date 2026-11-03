@@ -51,3 +51,32 @@ jobs:
       - name: kaem passes its own tests
         shell: pwsh
         run: x86/kaem-test.ps1
+
+      # The chain assembles and links with M0 and the hand-written hex2. The
+      # M1 and hex2 it compiles from C are what upstream builds every later
+      # stage with, so from the input the chain built them from they have to
+      # rebuild both of themselves byte for byte. The base address is the
+      # ImageBase PE32-i386.hex2 declares.
+      - name: M1 and hex2 from C rebuild themselves
+        shell: pwsh
+        working-directory: x86
+        run: |
+          $tools = @(
+            @{ name = 'M1'; libc = 'libc-bootstrap.M1'; source = 'M1-macro.M1' }
+            @{ name = 'hex2-new'; libc = 'libc-full.M1'; source = 'hex2_linker.M1' }
+          )
+          foreach ($tool in $tools) {
+            $hex2 = "artifact/$($tool.name)-c.hex2"
+            $exe = "artifact/$($tool.name)-c.exe"
+            ./artifact/M1.exe --architecture x86 --little-endian `
+              -f ../M2libc/x86/x86_defs.M1 -f libc-core.M1 -f $tool.libc `
+              -f "artifact/$($tool.source)" -f pe-end-shim.M1 -o $hex2
+            if ($LASTEXITCODE -ne 0) { throw "M1 failed on $($tool.source) with $LASTEXITCODE" }
+            ./artifact/hex2-new.exe --architecture x86 --little-endian --base-address 0x400000 `
+              -f PE32-i386.hex2 -f ntdll-i386.hex2 -f $hex2 -o $exe
+            if ($LASTEXITCODE -ne 0) { throw "hex2 failed on $hex2 with $LASTEXITCODE" }
+            $want = (Get-FileHash "artifact/$($tool.name).exe").Hash
+            $got = (Get-FileHash $exe).Hash
+            if ($want -ne $got) { throw "$exe is $got, $($tool.name).exe is $want" }
+            "$got  $($tool.name).exe, rebuilt by M1 and hex2"
+          }
