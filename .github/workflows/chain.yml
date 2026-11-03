@@ -156,3 +156,29 @@ jobs:
             if (-not (marked x)) { throw "chmod 0755 did not mark x" }
           } finally { Pop-Location }
           "chmod marks and unmarks a file, fails on a missing one, and hex2 marks what it links"
+
+      # malloc's blocks are aligned for any object whatever came before them
+      # and wherever the program's data ended, which sets where the heap
+      # starts. Windows rejects a file call whose name's buffer is at an odd
+      # address, so chmod failed in any program whose data ended at an odd
+      # byte. The program allocates each size from 1 to 39 both ways and
+      # exits 1 at the first block not on an 8-byte boundary.
+      - name: malloc returns aligned memory
+        shell: pwsh
+        working-directory: x86
+        run: |
+          function step { & $args[0] @($args | Select-Object -Skip 1); if ($LASTEXITCODE -ne 0) { throw "$($args[0]) exited $LASTEXITCODE" } }
+          $libc = 'sys/types.h', 'stddef.h', 'sys/utsname.h', 'x86/windows/ntdll.c',
+            'x86/windows/unistd.c', 'x86/windows/process.c', 'x86/windows/fcntl.c', 'fcntl.c',
+            'x86/windows/sys/stat.c', 'ctype.c', 'stdlib.c', 'stdarg.h', 'stdio.h', 'stdio.c',
+            'bootstrappable.c' | ForEach-Object { '-f'; "../M2libc/$_" }
+          step ./artifact/M2.exe --architecture x86 -D __windows__=1 @libc `
+            -f Development/malloc-align-test.c -o artifact/malloc-align-test.M1
+          step ./artifact/catm.exe artifact/malloc-align-test-0.M1 ../M2libc/x86/x86_defs.M1 `
+            libc-core.M1 libc-full.M1 artifact/malloc-align-test.M1 pe-end-shim.M1
+          step ./artifact/M0.exe artifact/malloc-align-test-0.M1 artifact/malloc-align-test.hex2
+          step ./artifact/catm.exe artifact/malloc-align-test-0.hex2 PE32-i386.hex2 ntdll-i386.hex2 `
+            artifact/malloc-align-test.hex2
+          step ./artifact/hex2.exe artifact/malloc-align-test-0.hex2 artifact/malloc-align-test.exe
+          step ./artifact/malloc-align-test.exe
+          "every block malloc and calloc returned is 8-byte aligned"
