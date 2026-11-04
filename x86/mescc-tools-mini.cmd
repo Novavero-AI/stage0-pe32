@@ -14,8 +14,10 @@ set ART=%HERE%artifact
 set SEED=%HERE%..\bootstrap-seeds\PE32\i386\hex0-seed.exe
 if not exist "%ART%" mkdir "%ART%"
 
-rem Phase-0  hex0 from the seed.  This must reproduce the seed byte for byte.
+rem Phase-0  hex0 from the seed, which has to reproduce the seed byte for byte
+rem before anything is built with it.
 "%SEED%" "%HERE%hex0_x86.hex0" "%ART%\hex0.exe" || goto :fail
+fc /b "%SEED%" "%ART%\hex0.exe" >nul || goto :not_seed
 
 rem Phase-1  hex1 adds single character labels
 "%ART%\hex0.exe" "%HERE%hex1_x86.hex0" "%ART%\hex1.exe" || goto :fail
@@ -156,6 +158,8 @@ rem fork and read PATH the way Windows writes it.
 echo Built: hex0 hex1 hex2 catm M0 cc_x86 M2 M1 hex2-new kaem
 exit /b 0
 
+:not_seed
+echo hex0.exe is not the seed
 :fail
 echo BUILD FAILED
 exit /b 1
