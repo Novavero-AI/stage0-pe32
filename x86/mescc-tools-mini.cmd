@@ -1,6 +1,7 @@
 @echo off
 rem SPDX-FileCopyrightText: (C) 2016-2021 Jeremiah Orians
 rem SPDX-FileCopyrightText: (C) 2026 Gavin John
+rem SPDX-FileCopyrightText: (C) 2026 Novavero AI Inc.
 rem
 rem SPDX-License-Identifier: GPL-3.0-or-later
 rem

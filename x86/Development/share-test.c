@@ -1,4 +1,10 @@
-/* A file opens to read while another handle on it can write, as POSIX
+/* SPDX-FileCopyrightText: (C) 2026 Novavero AI Inc.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Additional permission under GNU GPL version 3 section 7:
+ * see LICENSE.EXCEPTION in the root of this project.
+ *
+ * A file opens to read while another handle on it can write, as POSIX
  * allows: GNU Mes keeps each file it writes open until it exits, and MesCC
  * runs M1 on the assembly it has just written.  The program opens share.txt
  * to write, writes a line and flushes it, then opens the same file to read

@@ -1,3 +1,9 @@
+# SPDX-FileCopyrightText: (C) 2026 Novavero AI Inc.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Additional permission under GNU GPL version 3 section 7:
+# see LICENSE.EXCEPTION in the root of this project.
+#
 # Runs kaem's own tests, mescc-tools/Kaem/test, against the kaem.exe the chain
 # built, and checks every output against the hashes in test.answers. Each test
 # and its flags come from mescc-tools/Kaem/test.sh, read line by line, so a
