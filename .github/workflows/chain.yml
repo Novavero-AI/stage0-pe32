@@ -48,6 +48,29 @@ jobs:
           if ($hex0 -eq $hex1) { throw "hex0.exe and hex1.exe match, so this comparison proves nothing" }
           Get-FileHash x86/artifact/*.exe | ForEach-Object { "$($_.Hash)  $(Split-Path -Leaf $_.Path)" }
 
+      # A copy of Phase-0 whose hex0 source differs from the seed's in one
+      # byte, the e_magic 'MZ' made 'M[', has to stop at the seed check
+      # before hex1 is built.
+      - name: The chain stops when hex0 is not the seed
+        shell: pwsh
+        run: |
+          $copy = Join-Path $env:RUNNER_TEMP seed-check
+          New-Item -ItemType Directory -Force "$copy/x86", "$copy/bootstrap-seeds/PE32/i386" | Out-Null
+          Copy-Item x86/mescc-tools-mini.cmd "$copy/x86/"
+          Copy-Item bootstrap-seeds/PE32/i386/hex0-seed.exe "$copy/bootstrap-seeds/PE32/i386/"
+          $source = Get-Content -Raw x86/hex0_x86.hex0
+          $changed = $source -replace '(?m)^4D 5A', '4D 5B'
+          if ($changed -eq $source) { throw "hex0_x86.hex0 has no e_magic line to change" }
+          [IO.File]::WriteAllText("$copy/x86/hex0_x86.hex0", $changed)
+          $out = cmd /c "$copy\x86\mescc-tools-mini.cmd" 2>&1
+          $code = $LASTEXITCODE
+          $out
+          if ($code -eq 0) { throw "the chain went on with a hex0 that is not the seed" }
+          if ($out -notcontains 'hex0.exe is not the seed') { throw "the chain failed, but not at the seed check" }
+          if (Test-Path "$copy/x86/artifact/hex1.exe") { throw "hex1.exe was built from a hex0 that is not the seed" }
+          # The step would otherwise exit with the copy's expected failure.
+          exit 0
+
       - name: kaem passes its own tests
         shell: pwsh
         run: x86/kaem-test.ps1
