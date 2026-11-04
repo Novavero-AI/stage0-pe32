@@ -1,4 +1,10 @@
-/* malloc and calloc hand out memory aligned for any object, on the 8-byte
+/* SPDX-FileCopyrightText: (C) 2026 Novavero AI Inc.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Additional permission under GNU GPL version 3 section 7:
+ * see LICENSE.EXCEPTION in the root of this project.
+ *
+ * malloc and calloc hand out memory aligned for any object, on the 8-byte
  * boundary Windows guarantees on x86, whatever was allocated before and
  * wherever the program's data ended.  Windows checks some of this itself: a
  * file call whose name's buffer is at an odd address fails with

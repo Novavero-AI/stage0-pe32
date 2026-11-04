@@ -1,4 +1,10 @@
-/* Writes a line to a file through stdio and returns from main without
+/* SPDX-FileCopyrightText: (C) 2026 Novavero AI Inc.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Additional permission under GNU GPL version 3 section 7:
+ * see LICENSE.EXCEPTION in the root of this project.
+ *
+ * Writes a line to a file through stdio and returns from main without
  * closing the file.  Returning from main is an exit (C99 5.1.2.2.3), and exit
  * flushes every open stream, so exit-flush.txt has to hold the line afterwards.
  *
