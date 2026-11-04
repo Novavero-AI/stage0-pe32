@@ -94,10 +94,11 @@ copies. Upstream has the same arrangement in `x86/libc-core.M1`.
 
 There is no `brk`. `x86/PE32-i386.hex2` gives every program a section whose
 VirtualSize runs to the top of a 128 MB image, so the memory past the end of
-the file is already mapped and already zero. A program declares a buffer by
-putting a label after `:PE_end` and never asks the operating system for memory.
-16 MB was the original figure and was not enough: M0 processing the M1 that
-builds M2-Planet wants over 22 MB of it.
+the file is already mapped and already zero. A hand-written link declares a
+buffer by putting a label after `:PE_end` and never asks the operating system
+for memory; M0 processing the M1 that builds M2-Planet uses over 22 MB of it.
+The `malloc` in M2libc's `stdlib.c` hands out that section first, in 8-byte
+aligned blocks, and reserves more from the system once it runs out.
 
 `SectionAlignment` is the page size, and the header pads to 0x1000 to match.
 The format permits less, and wine accepts less, but Windows 11 refuses such an
@@ -199,14 +200,17 @@ what M2-Planet and M1-macro compile against instead of
 needs, standing on `x86/ntdll-i386.hex2` the same way `x86/cc_x86.M1` does. See
 their own headers for what each routine does.
 
-The two C libraries need different things set up before `main` runs, so
-`libc-core.M1`'s `_start` calls `:__libc_init` and catm decides what that is:
-`x86/libc-bootstrap.M1`, which does nothing, or `x86/libc-full.M1`, which calls
-M2libc's `__init_malloc` and `__init_io`. The second is not optional and its
-absence is quiet: `stdin`, `stdout` and `stderr` are globals that start NULL,
-so a program linked without it works until the first time it tries to report an
-error and then faults inside `fputs` instead of printing it. hex2 built from C
-did exactly that, on every error path, until this existed.
+The two C libraries need different things done around `main`, so
+`libc-core.M1`'s `_start` calls `:__libc_init` before it and `:__libc_fini`
+after it, and catm decides what those are: `x86/libc-bootstrap.M1`, where both
+do nothing, or `x86/libc-full.M1`, where `__libc_init` calls M2libc's
+`__init_malloc` and `__init_io` and `__libc_fini` calls `__kill_io`. The second
+is not optional and its absence is quiet: `stdin`, `stdout` and `stderr` are
+globals that start NULL, so a program linked without it works until the first
+time it tries to report an error and then faults inside `fputs` instead of
+printing it. `__kill_io` is what makes returning from `main` an exit, as C
+requires: it flushes every stream, so output a program wrote and never closed
+is not lost.
 
 `M2libc/x86/x86_defs.M1` -- the submodule's copy, not a copy of it -- matters
 more than its name suggests: it is the mnemonic set M2's own code generator
@@ -235,13 +239,16 @@ whole C library for the stages that can use `--bootstrap-mode`; `unistd.c`,
 `fcntl.c` and `sys/stat.c` are the POSIX layer underneath M2libc's own
 `stdio.c` for the stages that cannot. A file descriptor is a Windows HANDLE,
 with 0, 1 and 2 still meaning the three standard streams -- no real handle is
-that small, so nothing above can tell. `brk` has nothing to ask the kernel for,
-since the image carries its writable memory with it. Windows runs a PE because
-its header says so and keeps no executable bit, but a Nix archive records one
-for every regular file, so `chmod` keeps the owner execute bit as the
-`nova.exec` alternate data stream nova-nix reads it from: set, the stream is
-made; clear, it is removed. hex2's `chmod(output, 0750)` marks what it links,
-as on Linux.
+that small, so nothing above can tell. `open` shares the file for reading,
+writing and deletion, because a POSIX open is never refused for another process
+having the file open: GNU Mes keeps each file it writes open until it exits,
+and MesCC runs M1 on the assembly it has just written. `brk` has nothing to ask
+the kernel for, since the image carries its writable memory with it. Windows
+runs a PE because its header says so and keeps no executable bit, but a Nix
+archive records one for every regular file, so `chmod` keeps the owner execute
+bit as the `nova.exec` alternate data stream nova-nix reads it from: set, the
+stream is made; clear, it is removed. hex2 built from C calls
+`chmod(output, 0750)` on what it links, so its output is marked as on Linux.
 
 Everything M2libc's `unistd.h` and `sys/stat.h` declare is there.
 `M2libc/x86/windows/ntdll.c` is what the rest of it stands on:
@@ -317,8 +324,9 @@ child receives, and it receives it under the *same number*, which is what keeps
 the number in the child's copy of memory meaningful. POSIX hands every
 descriptor to a child across both fork and exec unless it is marked
 `FD_CLOEXEC`, and there is no `FD_CLOEXEC` here to ask for the other behaviour.
-Only the shared copy asks for it: `hex0`, `hex1`, `hex2` and `catm` carry their
-own `open_file`, none of them forks, and `hex0`'s bytes *are* the seed the
+Only the shared copy asks for it, and only the shared copy shares a file for
+writing and deletion as well as reading: `hex0`, `hex1`, `hex2` and `catm` carry
+their own `open_file`, none of them forks, and `hex0`'s bytes *are* the seed the
 chain is checked against -- so changing theirs would move the trust anchor to
 no purpose.
 
