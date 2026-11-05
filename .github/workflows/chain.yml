@@ -239,3 +239,31 @@ jobs:
           Push-Location artifact
           try { step ./share-test.exe } finally { Pop-Location }
           "share.txt opened to read while it was open to write, and the line read back"
+
+  regenerate:
+    name: Generated sources match their generators
+    # The scripts in x86/Development write every .hex0, .hex1 and .hex2 source
+    # and M2libc's ntdll-slots.h, and assemble each program from what they
+    # wrote to check it against the binary they built. A source edited by
+    # hand, or a generator changed without regenerating, leaves the tree
+    # different from what was committed. The generators are Python, so this
+    # needs no Windows.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Regenerate the sources
+        run: x86/Development/regenerate.sh
+
+      # status lists untracked files as well as changed ones; --submodule=diff
+      # shows a change inside M2libc as its lines rather than as a dirty commit.
+      - name: The tree is as committed
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --porcelain
+            git diff --submodule=diff
+            exit 1
+          fi

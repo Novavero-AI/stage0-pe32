@@ -147,9 +147,11 @@ with:
 
     x86/Development/regenerate.sh
 
-Each generator assembles its own output and compares it against the binary it
-describes, so a source that has drifted from its binary fails there rather than
-later.
+Each program's generator assembles the source it wrote and compares the result
+with the binary it built, and hex0's has to be the seed, so a source that has
+drifted from its binary fails there rather than later. CI runs `regenerate.sh`
+and fails if it changes anything in the tree, so a generator and what it writes
+are committed together.
 
 `x86/cc_x86.M1` is the exception, because it is readable assembly rather than
 hex and because the compiler in it is upstream's and is not being ported. It is
@@ -281,13 +283,7 @@ generator, and comes with a rule that has to be kept by hand. M2-Planet saves
 the stack pointer in EBP before pushing arguments and restores it from there
 afterwards, so it never adds back what it pushed -- which is what lets it call
 stdcall routines that pop their own arguments. It also pushes the first
-argument first, so every call below is written backwards. And it holds the
-pointer it is about to call in EDX across the argument list without saving it,
-so an argument that writes EDX -- a function call, a `*` or `/` or `%`, an
-array subscript -- replaces the address about to be called, and the program
-jumps to zero with nothing to say where it came from. That cost three
-debugging rounds in one sitting, so `x86/Development/check_fnptr_args.py`
-fails on one now, and is checked against all three.
+argument first, so every call below is written backwards.
 
 `M2libc/x86/windows/process.c` is starting another program and waiting for it,
 and `fork`.

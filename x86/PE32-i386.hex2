@@ -41,25 +41,11 @@
 # The image imports nothing: NumberOfRvaAndSizes is 0, so there is no import
 # directory.  A program reaches ntdll through the PEB instead.
 #
-# SizeOfStackReserve is 64MB, not the 1MB a default MSVC-linked program gets:
-# found by running a self-hosted C compiler built on this bootstrap (nova-nix's
-# tinycc port) far enough to compile a real source file, where 2MB -- this
-# field's original value -- overflowed partway through, walking the stack down
-# from the top of its reservation to the bottom before Windows raised
-# STATUS_STACK_OVERFLOW. Two things stack it deeper than a native build of the
-# same compiler would: MesCC gives every function it compiles a fixed-size
-# local frame rather than sizing one to what the function actually declares,
-# and the ntdll-by-PEB path every syscall-shaped call takes here
-# (lib/windows/ntdll.c's __ntdll_resolve, ntcall.c's __ntcallN) is itself a few
-# more stack frames per call than a real syscall instruction would ever cost.
-# 8MB (the first bump tried) still overflowed at a different depth -- a
-# self-hosted tcc compiling a real translation unit (libtcc1.c, boot-mes.exe's
-# own first target) recurses deep enough, with MesCC's per-call frame tax
-# under it, that a merely-bigger reserve keeps getting outrun rather than
-# comfortably clearing it, so this jumps to 64MB instead of tuning up in small
-# steps again. SizeOfStackCommit is unchanged -- Windows grows the committed
-# region on demand as the stack is touched, up to whatever is reserved here,
-# so only the ceiling needed to move.
+# SizeOfStackReserve is 64MB.  A self-hosted tcc built on this chain overflows an
+# 8MB stack compiling libtcc1.c, because MesCC gives every function a fixed-size
+# frame and each ntdll call goes through __ntdll_resolve.  Windows commits the
+# stack on demand, up to the reserve, so a large reserve costs only address space
+# and SizeOfStackCommit is one page.
 
 :PE_base
 
