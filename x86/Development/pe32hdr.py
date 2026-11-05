@@ -20,6 +20,9 @@ ALIGN      = SECT_ALIGN
 IMAGE_SIZE = int(os.environ.get("NOVA_IMAGE", "0x8000000"), 0)
 VSIZE      = IMAGE_SIZE - HDR_SIZE # the section covers the rest of it
 TEXT_BASE  = IMAGE_BASE + HDR_SIZE
+# The stack PE32-i386.hex2 reserves for every program linked with it.
+# gen_header.py's banner, which becomes that file's comment, says why it is 64MB.
+STACK_RESERVE = 0x4000000
 
 DOS = bytes.fromhex(
     "4D 5A 90 00 03 00 00 00 04 00 00 00 FF FF 00 00"
@@ -29,7 +32,7 @@ DOS = bytes.fromhex(
 assert len(DOS) == 0x40
 
 # (bytes-or-token, comment).  A str entry is a hex2 pointer, emitted verbatim.
-def _f():
+def _fields(stack_reserve):
     F = []
     def b(hexstr, comment=None):
         F.append((bytes.fromhex(hexstr.replace(" ", "")), comment))
@@ -86,7 +89,8 @@ def _f():
     b("00 00 00 00", "CheckSum = 0, which is accepted for anything but a kernel image")
     b("03 00", "Subsystem = 3 (console)")
     b("00 01", "DllCharacteristics = 0x0100 (NX compatible)")
-    b("00 00 20 00", "SizeOfStackReserve")
+    F.append((struct.pack("<I", stack_reserve), "SizeOfStackReserve = 0x%x (%dMB)"
+              % (stack_reserve, stack_reserve >> 20)))
     b("00 10 00 00", "SizeOfStackCommit")
     b("00 00 10 00", "SizeOfHeapReserve")
     b("00 10 00 00", "SizeOfHeapCommit")
@@ -112,12 +116,10 @@ def _f():
     F.append(("##label", "PE_text"))
     return F
 
-FIELDS = _f()
-
-def header_lines():
+def header_lines(stack_reserve):
     """The stub as text, in ELF-i386.hex2's layout: one field per line."""
     L = []
-    for x, c in FIELDS:
+    for x, c in _fields(stack_reserve):
         if x == "##label":
             L += ["", ":" + c]
         elif x == "##head":
@@ -129,10 +131,10 @@ def header_lines():
             L.append(("%-31s # %s" % (h, c)).rstrip() if c else h)
     return L
 
-def header_bytes(pe_end, start):
+def header_bytes(pe_end, start, stack_reserve):
     """The same fields with the two pointers resolved, for cross-checking."""
     o = bytearray()
-    for x, _c in FIELDS:
+    for x, _c in _fields(stack_reserve):
         if isinstance(x, str):
             if x.startswith("##"):
                 continue

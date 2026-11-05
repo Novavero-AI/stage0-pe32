@@ -78,7 +78,7 @@ B8 00                           # e_sp
 00 00 00 00                     # CheckSum = 0, which is accepted for anything but a kernel image
 03 00                           # Subsystem = 3 (console)
 00 01                           # DllCharacteristics = 0x0100 (NX compatible)
-00 00 20 00                     # SizeOfStackReserve
+00 00 20 00                     # SizeOfStackReserve = 0x200000 (2MB)
 00 10 00 00                     # SizeOfStackCommit
 00 00 10 00                     # SizeOfHeapReserve
 00 10 00 00                     # SizeOfHeapCommit

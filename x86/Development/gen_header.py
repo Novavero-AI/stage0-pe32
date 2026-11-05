@@ -6,7 +6,7 @@
 """Write PE32-i386.hex2, the standalone header stub."""
 import sys
 from stage0asm import block, spdx, UPSTREAM, PORT
-from pe32hdr import header_lines
+from pe32hdr import header_lines, STACK_RESERVE
 
 BANNER = "\n".join(spdx([PORT])) + """PE32-i386.hex2: the PE32/i386 executable header, in hex2's language.
 
@@ -43,6 +43,12 @@ declares a buffer by putting a label after :PE_end and never has to ask for
 memory at run time.
 
 The image imports nothing: NumberOfRvaAndSizes is 0, so there is no import
-directory.  A program reaches ntdll through the PEB instead."""
+directory.  A program reaches ntdll through the PEB instead.
 
-open(sys.argv[1], "w").write("\n".join(block(BANNER) + header_lines()) + "\n")
+SizeOfStackReserve is 64MB.  A self-hosted tcc built on this chain overflows an
+8MB stack compiling libtcc1.c, because MesCC gives every function a fixed-size
+frame and each ntdll call goes through __ntdll_resolve.  Windows commits the
+stack on demand, up to the reserve, so a large reserve costs only address space
+and SizeOfStackCommit is one page."""
+
+open(sys.argv[1], "w").write("\n".join(block(BANNER) + header_lines(STACK_RESERVE)) + "\n")

@@ -11,19 +11,20 @@ so the generated source can be checked against it before anything runs.
 """
 import struct
 from stage0asm import block, datline, insnline
-from pe32hdr import (IMAGE_BASE, HDR_SIZE, TEXT_BASE, IMAGE_SIZE,
+from pe32hdr import (IMAGE_BASE, HDR_SIZE, TEXT_BASE, IMAGE_SIZE, STACK_RESERVE,
                      header_lines, header_bytes, assemble_hex2)
 
 
 def emit_pe_hex2(a, banner, DOC, data_label, out_exe, out_hex, name,
                  inline_header=True, code_marks=(), prefix_files=(),
-                 drop_through=None, entry="_start", verify=True, emit_tail=True):
+                 drop_through=None, entry="_start", verify=True, emit_tail=True,
+                 stack_reserve=STACK_RESERVE):
     a.org = TEXT_BASE
     body, lines, labels = a.assemble()
     bss_total = sum(sz for _n, sz, _c in a.bss)
     assert TEXT_BASE + len(body) + bss_total <= IMAGE_BASE + IMAGE_SIZE, "image too small"
     pe_end = TEXT_BASE + len(body)
-    exe = header_bytes(pe_end, labels[entry]) + body
+    exe = header_bytes(pe_end, labels[entry], stack_reserve) + body
 
     # A four-byte field that holds a label's address is written &label, and a
     # relative displacement %label; hex2 resolves both.
@@ -33,7 +34,7 @@ def emit_pe_hex2(a, banner, DOC, data_label, out_exe, out_hex, name,
 
     L = block(banner)
     if inline_header:
-        L += header_lines()
+        L += header_lines(stack_reserve)
 
     group, in_data = [], [False]
     def flush(comment):
@@ -105,7 +106,7 @@ def emit_pe_hex2(a, banner, DOC, data_label, out_exe, out_hex, name,
         text = open(extra, "rb").read() + text
     if not inline_header:
         # what catm will hand hex2: the stub, then everything catm'd after it
-        text = ("\n".join(header_lines()) + "\n").encode() + text
+        text = ("\n".join(header_lines(stack_reserve)) + "\n").encode() + text
     got = bytes(assemble_hex2(text))
     ok = got == exe
     print("%s: code+data %d, file %d, entry 0x%x" % (name, len(body), len(exe), labels[entry]))

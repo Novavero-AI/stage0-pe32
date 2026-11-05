@@ -10,6 +10,12 @@ from pe32emit import emit_pe_hex2
 
 BUFSZ = 0x10000
 
+# catm carries the header itself, since nothing below it can join
+# PE32-i386.hex2 on, and reserves 2MB of stack where that file reserves 64MB.
+# It is hand-written and calls ntdll through slots it resolves once at startup,
+# so neither thing that deepens a compiled program's stack applies to it.
+STACK_RESERVE = 0x200000
+
 a = Asm()
 
 emit_find_ntdll(a)
@@ -192,4 +198,5 @@ memory the header stub leaves zero-filled, so catm never asks for memory.
 This file is written in hex2's language and includes the PE32 header, because
 catm is what joins that header to everything built after it."""
 
-sys.exit(0 if emit_pe_hex2(a, BANNER, DOC, "name_NtCreateFile", sys.argv[1], sys.argv[2], "catm") else 1)
+sys.exit(0 if emit_pe_hex2(a, BANNER, DOC, "name_NtCreateFile", sys.argv[1], sys.argv[2], "catm",
+                           stack_reserve=STACK_RESERVE) else 1)
