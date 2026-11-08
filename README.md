@@ -176,7 +176,7 @@ demonstrably the same compiler.
 From cc_x86 up, the chain compiles C rather than hand-written assembly, and the
 C it compiles first is M2-Planet's own: `M2-Planet/`, `M2libc/` and
 `mescc-tools/` are git submodules. Each follows upstream's default branch, with
-the commits upstream has not taken yet on top. Almost nothing in them is
+the commits upstream has not taken on top. Almost nothing in them is
 Windows-specific: mescc-tools needs kaem's changes listed above, and M2libc
 needs the `x86/windows/` target this project wrote and a Windows path in
 `_malloc_brk`.
@@ -194,7 +194,7 @@ and the fix are both general; nothing about them is Windows's.
 The second: `&p[i]` started from the address of the variable `p` rather than
 its value whenever `p` was a pointer or a global array, so it compiled to the
 wrong address without a warning. Upstream's own fix covers local arrays only;
-this one is offered upstream as oriansj/M2-Planet#179.
+this one is offered upstream.
 
 `mescc-tools-extra/` follows upstream's master as well, with nothing on top,
 because nothing in it needed porting at all. It is not part of the chain, which

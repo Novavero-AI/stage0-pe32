@@ -189,9 +189,10 @@ jobs:
       # malloc's blocks are aligned for any object whatever came before them
       # and wherever the program's data ended, which sets where the heap
       # starts. Windows rejects a file call whose name's buffer is at an odd
-      # address, so chmod failed in any program whose data ended at an odd
-      # byte. The program allocates each size from 1 to 39 both ways and
-      # exits 1 at the first block not on an 8-byte boundary.
+      # address, so an unaligned block would make chmod fail in any program
+      # whose data ends at an odd byte. The program allocates each size from
+      # 1 to 39 both ways and exits 1 at the first block not on an 8-byte
+      # boundary.
       - name: malloc returns aligned memory
         shell: pwsh
         working-directory: x86
@@ -214,8 +215,8 @@ jobs:
 
       # A file opens to read while another handle on it can write, as POSIX
       # allows. GNU Mes keeps each file it writes open until it exits, and
-      # MesCC runs M1 on the assembly it has just written, which M1 could not
-      # open while open() shared it for reading alone. The program opens
+      # MesCC runs M1 on the assembly it has just written, which M1 cannot
+      # open if open() shares it for reading alone. The program opens
       # share.txt to write, writes a line, and opens it again to read with the
       # first still open; it exits 1 if that open fails or the line does not
       # read back.
