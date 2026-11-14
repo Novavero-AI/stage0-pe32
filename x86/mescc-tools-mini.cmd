@@ -69,9 +69,9 @@ rem nothing left to contribute but debugging information, so that step is
 rem skipped and PE32-i386.hex2 stands in unchanged.  See the README: GNU Mes
 rem builds and passes its own tests either way.
 rem
-rem M2's own C is unmodified, so it always ends its output with :ELF_end, the
-rem label its ELF header expects; PE32-i386.hex2 expects :PE_end.  pe-end-shim.M1
-rem defines :PE_end at that same address without touching the vendored source.
+rem M2-Planet always ends its output with :ELF_end, the label its ELF header
+rem expects; PE32-i386.hex2 expects :PE_end.  pe-end-shim.M1 defines :PE_end at
+rem that same address without touching M2-Planet's source.
 "%ART%\M2.exe" --architecture x86 --bootstrap-mode ^
 	-f "%HERE%..\M2libc\x86\windows\bootstrap.c" ^
 	-f "%HERE%..\M2libc\bootstrappable.c" ^

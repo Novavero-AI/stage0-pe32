@@ -231,10 +231,10 @@ illegal instruction somewhere unrelated.
 `libc-core.M1`, `libc-full.M1` and `libc-bootstrap.M1` together with
 `M2libc/x86/x86_defs.M1`, and it fails on a mnemonic nothing DEFINEs.
 
-M2-Planet's own C is unmodified, so it always ends its output with `:ELF_end`,
-the label its ELF header expects; `PE32-i386.hex2` expects `:PE_end`.
-`x86/pe-end-shim.M1` defines `:PE_end` at that same address without touching
-the vendored source -- catm puts it right after M2's output.
+M2-Planet always ends its output with `:ELF_end`, the label its ELF header
+expects; `PE32-i386.hex2` expects `:PE_end`. `x86/pe-end-shim.M1` defines
+`:PE_end` at that same address without touching M2-Planet's source -- catm
+puts it right after M2's output.
 
 `M2libc/x86/windows/` is where the port actually lives. `bootstrap.c` is the
 whole C library for the stages that can use `--bootstrap-mode`; `unistd.c`,

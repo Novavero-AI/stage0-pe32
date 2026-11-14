@@ -63,15 +63,16 @@
 # M2libc/x86/windows/bootstrap.c is the other half: it is the C these are
 # reached from, and the two are meant to be read together.
 #
-# Upstream's x86/libc-core.M1 is nine instructions, because on Linux argc and
-# argv are already on the stack and exit is a syscall.  Neither is true here.
+# Upstream's x86/libc-core.M1 is fourteen instructions, because on Linux argc
+# and argv are already on the stack and exit is a syscall.  Neither is true
+# here.
 #
 # The memory past the end of the image
 #
-# There is no brk and nothing is ever asked of the operating system: the image
-# runs to 128MB and everything past the end of the file is mapped, writable and
-# already zero.  This file divides it up, measured from :PE_end, which is the
-# last label the compiled program emits:
+# There is no brk, and nothing here asks the operating system for memory: the
+# image runs to 128MB and everything past the end of the file is mapped,
+# writable and already zero.  This file divides it up, measured from :PE_end,
+# which is the last label the compiled program emits:
 #
 #   +0x00000   argv, 256 pointers
 #   +0x00400   the argument strings themselves
@@ -80,15 +81,18 @@
 #   +0x11000   the environment strings themselves
 #   +0x20000   the heap, which is where malloc starts
 #
-# Nothing checks these bounds.  A command line of more than 256 arguments or
-# 31KB, a path of more than 2048 characters, or an environment of more than
-# 1024 entries or 60KB, would run past its own area, and this is the layer
-# below the one that could report it.
+# Nothing checks these bounds.  A command line of more than 255 arguments or
+# 31KB, a path of more than 16383 characters, or an environment of more than
+# 1023 entries or 60KB, would run past its own area, and this is the layer
+# below the one that could report it.  The last pointer slot of argv and of
+# envp holds the NULL that ends it.
 
 
-# Instructions M2libc/x86/x86_defs.M1 does not already name.  A duplicate
-# DEFINE is harmless, but there is no reason to add any, so these are only the
-# ones it lacks.
+# Instructions for the code below, most of which M2libc/x86/x86_defs.M1 does
+# not name.  Twelve of these it does name, a few the code below does not use,
+# and cmp_eax, differs: x86_defs.M1 has 3D, which takes a 32-bit immediate,
+# where this has 83F8, which takes an 8-bit one, as every cmp_eax, in this
+# file passes.
 DEFINE add_ebx, 81C3
 DEFINE add_ecx, 81C1
 DEFINE add_edi, 81C7
@@ -160,6 +164,11 @@ DEFINE test_ebx,ebx 85DB
 	test_eax,eax
 	je %_start_main                             ; The ordinary case, and the only one that runs main
 
+# Nothing sets __fork_child_flag -- fork in M2libc/x86/windows/process.c clones
+# the process instead -- so every process goes on to main and this park never
+# runs.  It is for a fork that starts this program again and copies itself
+# over it:
+#
 # A fork child, which must not run main and must not touch anything its parent
 # is about to overwrite.  Everything above has happened -- loader init, ntdll
 # resolved, the C library set up -- so the stack below is finished with and the
@@ -260,7 +269,7 @@ DEFINE test_ebx,ebx 85DB
 
 :_start_env_done
 	mov_eax, %0
-	mov_[ebx],eax                               ; envp[n] = NULL, which getenv stops at
+	mov_[ebx],eax                               ; envp[n] = NULL, which ends envp
 
 	mov_ebx, &PE_end
 	add_ebx, %0x10000                           ; envp, the array just built
@@ -413,10 +422,10 @@ DEFINE test_ebx,ebx 85DB
 # Returns the address resolve_all put in that slot
 #
 # ntdll-i386.hex2 resolves each routine it needs out of ntdll's export table
-# into a slot, and fn_table names the first of them.  The C above this file
-# calls through the address this returns rather than through a stub written
-# here for each routine, which is what the rest of the POSIX layer would
-# otherwise have to be.
+# into a slot, and fn_table names the first of them.  C can call through the
+# address this returns, by way of __ntdll in M2libc/x86/windows/ntdll.c,
+# rather than through a stub written here for each routine; the POSIX layer
+# finds the routines it calls by name instead, with __ntdll_resolve.
 #
 # That works because of how M2-Planet compiles a call: it saves the stack
 # pointer in EBP first and restores it from there afterwards, rather than
@@ -436,9 +445,10 @@ DEFINE test_ebx,ebx 85DB
 # Receives 0, 1 or 2 in EAX
 # Returns the address of that standard handle in the process parameters
 #
-# __stdhandle reads one of the three; this gives out where it is, so that dup2
-# can put a different handle there.  Redirection on Windows is exactly this:
-# the three handles a child inherits are the three words this points into.
+# __stdhandle reads one of the three; this gives out where it is, which is
+# where __spawn_suspended in M2libc/x86/windows/process.c reads the three it
+# hands a child.  Redirection on Windows is exactly this: the three handles a
+# child inherits are the three words this points into.
 :__stdslot
 	sal_eax, !2                                 ; 0, 1, 2 are a word apart
 	add_eax, %24                                ; ProcessParameters->hStdInput is at 0x18
@@ -465,10 +475,8 @@ DEFINE test_ebx,ebx 85DB
 # Returns this thread's TEB
 #
 # fs:0x18 is the TEB's pointer to itself, which is the one field of it that can
-# be read without already knowing where it is.  fork wants StackBase and
-# StackLimit out of it, at 0x04 and 0x08: the committed stack, which is what
-# has to be copied into a child for the child to go on running where its parent
-# left off.
+# be read without already knowing where it is.  StackBase and StackLimit are
+# at 0x04 and 0x08.  Nothing calls it.
 :__teb
 	mov_eax,[fs:DWORD] %0x18
 	ret
@@ -490,6 +498,9 @@ DEFINE test_ebx,ebx 85DB
 # __fork_setjmp function
 # Receives nothing, and must be called from fork itself and nowhere else
 # Returns 0, always
+#
+# Nothing calls it: fork in M2libc/x86/windows/process.c clones the process
+# instead.  What follows is how it serves a fork that copies this program.
 #
 # Not setjmp, in the end, though it started as one.  A fork child does not need
 # to come back into fork -- it needs fork to have returned 0 to whoever called
@@ -519,7 +530,7 @@ DEFINE test_ebx,ebx 85DB
 	ret
 
 
-# Where __fork_setjmp wrote those down, and how fork reads them back.
+# Where __fork_setjmp wrote those down, and how C reads them back.
 :__fork_geteip
 	mov_eax,[DWORD] &__fork_eip
 	ret
@@ -655,7 +666,7 @@ DEFINE test_ebx,ebx 85DB
 	ret
 
 
-# Two words of scratch.  Nothing falls into them: every routine above ends in a
+# Words of scratch.  Nothing falls into them: every routine above ends in a
 # ret or in a call that does not return, and the compiled program is only ever
 # entered through a label.
 :__handle
@@ -703,7 +714,8 @@ DEFINE test_ebx,ebx 85DB
 # is laid out identically.  So the parent cannot copy anything in until that
 # init is done and out of the way.  __fork_child_flag is how it says "you are a
 # fork child, do not run main"; __fork_parked is how the child says back "I am
-# out of my own way now, and spinning".  See fork in M2libc/x86/windows/process.c.
+# out of my own way now, and spinning".  Nothing sets either: fork in
+# M2libc/x86/windows/process.c clones the process instead.
 :__fork_child_flag
 	NULL
 
@@ -720,9 +732,8 @@ DEFINE test_ebx,ebx 85DB
 	ret
 
 
-# fork's three words: where __fork_setjmp's caller would have carried on, and
-# the stack it would have carried on with.  Written once per fork, in the
-# parent, and read back out of the copy the child was given.
+# __fork_setjmp's two words: where its caller would have carried on, and the
+# stack it would have carried on with.  Nothing calls __fork_setjmp.
 :__fork_eip
 	NULL
 
