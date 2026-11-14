@@ -85,22 +85,24 @@ ntdll's export table by name. There is no import table to inspect and nothing
 between the file and the kernel.
 
 That plumbing is the same in every program, so from M0 upward it lives in
-`x86/ntdll-i386.hex2` and catm puts it in front of the program, the way it puts
-the header stub in front of both. Part of it is splitting the command line,
-because Windows hands a program one string rather than a vector: from M0 up
+`x86/ntdll-i386.hex2` (for a program compiled from C, in M2libc's copy of it)
+and catm puts it in front of the program, the way it puts the header stub in
+front of both. Part of it is splitting the command line, because Windows hands
+a program one string rather than a vector: from M0 up
 that split is the whole rule `CommandLineToArgvW` defines, backslash escaping
 and all, since anything that launches another program writes an embedded quote
 as `\"` and an argument cut off at the first one is worse than useless. hex0, hex1, hex2 and catm cannot use it --
 there is no catm below catm to join files with -- so they carry their own
 copies. Upstream has the same arrangement in `x86/libc-core.M1`.
 
-There is no `brk`. `x86/PE32-i386.hex2` gives every program a section whose
-VirtualSize runs to the top of a 128 MB image, so the memory past the end of
-the file is already mapped and already zero. A hand-written link declares a
-buffer by putting a label after `:PE_end` and never asks the operating system
-for memory; M0 processing the M1 that builds M2-Planet uses over 22 MB of it.
-The `malloc` in M2libc's `stdlib.c` hands out that section first, in 8-byte
-aligned blocks, and reserves more from the system once it runs out.
+There is no `brk`. `x86/PE32-i386.hex2`, and M2libc's copy of it, give every
+program a section whose VirtualSize runs to the top of a 128 MB image, so the
+memory past the end of the file is already mapped and already zero. A
+hand-written link declares a buffer by putting a label after `:PE_end` and
+never asks the operating system for memory; M0 processing the M1 that builds
+M2-Planet uses over 22 MB of it. The `malloc` in M2libc's `stdlib.c` hands out
+that section first, in 8-byte aligned blocks, and reserves more from the
+system once it runs out.
 
 `SectionAlignment` is the page size, and the header pads to 0x1000 to match.
 The format permits less, and Wine accepts less, but Windows 11 refuses such an
@@ -154,6 +156,15 @@ drifted from its binary fails there rather than later. CI runs `regenerate.sh`
 and fails if it changes anything in the tree, so a generator and what it writes
 are committed together.
 
+`regenerate.sh` also writes M2libc's `x86/windows/PE32-i386.hex2` and
+`x86/windows/ntdll-i386.hex2`, the same bytes as the two here. The links
+written by hand are built against this repository's copies and every program
+compiled from C against M2libc's. stage0-posix likewise carries its own
+`ELF-i386.hex2` and `libc-core.M1` while M2libc carries `x86/ELF-x86.hex2` and
+`x86/libc-core.M1`, but it also links M2-Planet's first build, the one cc_x86
+compiles, against its own; here that build already uses M2libc's, because the
+Windows `libc-core.M1` is M2libc's alone.
+
 `x86/cc_x86.M1` is the exception, because it is readable assembly rather than
 hex and because the compiler in it is upstream's and is not being ported. It is
 derived from upstream's `x86/cc_x86.M1` by `x86/Development/port_cc_x86.py`,
@@ -200,23 +211,26 @@ this one is offered upstream.
 because nothing in it needed porting at all. It is not part of the chain, which
 neither builds nor uses it, but mkdir, cp, chmod and the unpackers are what
 anything built on top of the chain reaches for once it has a compiler, and
-they are ordinary C standing on the same M2libc. `x86/libc-core.M1` and `M2libc/x86/windows/bootstrap.c` are
-what M2-Planet and M1-macro compile against instead of
-`M2libc/x86/linux/bootstrap.c` -- the argc/argv/exit plumbing a C program
-needs, standing on `x86/ntdll-i386.hex2` the same way `x86/cc_x86.M1` does. See
-their own headers for what each routine does.
+they are ordinary C standing on the same M2libc.
+
+`M2libc/x86/windows/libc-core.M1` and `M2libc/x86/windows/bootstrap.c` are
+what M2-Planet and M1-macro compile against where upstream uses an
+`x86/libc-core.M1` and `M2libc/x86/linux/bootstrap.c` -- the argc/argv/exit
+plumbing a C program needs, standing on M2libc's `x86/windows/ntdll-i386.hex2`
+the same way `x86/cc_x86.M1` stands on this repository's. See their own
+headers for what each routine does.
 
 The two C libraries need different things done around `main`, so
 `libc-core.M1`'s `_start` calls `:__libc_init` before it and `:__libc_fini`
-after it, and catm decides what those are: `x86/libc-bootstrap.M1`, where both
-do nothing, or `x86/libc-full.M1`, where `__libc_init` calls M2libc's
-`__init_malloc` and `__init_io` and `__libc_fini` calls `__kill_io`. The second
-is not optional and its absence is quiet: `stdin`, `stdout` and `stderr` are
-globals that start NULL, so a program linked without it works until the first
-time it tries to report an error and then faults inside `fputs` instead of
-printing it. `__kill_io` is what makes returning from `main` an exit, as C
-requires: it flushes every stream, so output a program wrote and never closed
-is not lost.
+after it, and catm decides what those are:
+`M2libc/x86/windows/libc-bootstrap.M1`, where both do nothing, or
+`M2libc/x86/windows/libc-full.M1`, where `__libc_init` calls M2libc's
+`__init_malloc` and `__init_io` and `__libc_fini` calls `__kill_io`. The second is not optional and its absence is quiet:
+`stdin`, `stdout` and `stderr` are globals that start NULL, so a program linked
+without it works until the first time it tries to report an error and then
+faults inside `fputs` instead of printing it. `__kill_io` is what makes
+returning from `main` an exit, as C requires: it flushes every stream, so
+output a program wrote and never closed is not lost.
 
 `M2libc/x86/x86_defs.M1` -- the submodule's copy, not a copy of it -- matters
 more than its name suggests: it is the mnemonic set M2's own code generator
@@ -227,14 +241,14 @@ it either, and the instruction is silently dropped: the build succeeds, the
 binary comes out a few bytes short, and the failure surfaces later as an
 illegal instruction somewhere unrelated.
 
-`regenerate.sh` runs `x86/Development/check_mnemonics.py` on each of
-`libc-core.M1`, `libc-full.M1` and `libc-bootstrap.M1` together with
-`M2libc/x86/x86_defs.M1`, and it fails on a mnemonic nothing DEFINEs.
+`regenerate.sh` runs `x86/Development/check_mnemonics.py` on each of M2libc's
+`x86/windows/libc-core.M1`, `libc-full.M1` and `libc-bootstrap.M1` together
+with `M2libc/x86/x86_defs.M1`, and it fails on a mnemonic nothing DEFINEs.
 
 M2-Planet always ends its output with `:ELF_end`, the label its ELF header
-expects; `PE32-i386.hex2` expects `:PE_end`. `x86/pe-end-shim.M1` defines
-`:PE_end` at that same address without touching M2-Planet's source -- catm
-puts it right after M2's output.
+expects; `PE32-i386.hex2` expects `:PE_end`. `M2libc/x86/windows/pe-end-shim.M1`
+defines `:PE_end` at that same address without touching M2-Planet's source --
+catm puts it right after M2's output.
 
 `M2libc/x86/windows/` is where the port actually lives. `bootstrap.c` is the
 whole C library for the stages that can use `--bootstrap-mode`; `unistd.c`,

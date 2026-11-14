@@ -84,12 +84,14 @@ jobs:
       # The chain assembles and links with M0 and the hand-written hex2. The
       # M1 and hex2 it compiles from C are what upstream builds every later
       # stage with, so from the input the chain built them from they have to
-      # rebuild both of themselves byte for byte. The base address is the
-      # ImageBase PE32-i386.hex2 declares.
+      # rebuild both of themselves byte for byte, against the M2libc files the
+      # chain linked them with. The base address is the ImageBase
+      # PE32-i386.hex2 declares.
       - name: M1 and hex2 from C rebuild themselves
         shell: pwsh
         working-directory: x86
         run: |
+          $win = '../M2libc/x86/windows'
           $tools = @(
             @{ name = 'M1'; libc = 'libc-bootstrap.M1'; source = 'M1-macro.M1' }
             @{ name = 'hex2-new'; libc = 'libc-full.M1'; source = 'hex2_linker.M1' }
@@ -98,11 +100,11 @@ jobs:
             $hex2 = "artifact/$($tool.name)-c.hex2"
             $exe = "artifact/$($tool.name)-c.exe"
             ./artifact/M1.exe --architecture x86 --little-endian `
-              -f ../M2libc/x86/x86_defs.M1 -f libc-core.M1 -f $tool.libc `
-              -f "artifact/$($tool.source)" -f pe-end-shim.M1 -o $hex2
+              -f ../M2libc/x86/x86_defs.M1 -f "$win/libc-core.M1" -f "$win/$($tool.libc)" `
+              -f "artifact/$($tool.source)" -f "$win/pe-end-shim.M1" -o $hex2
             if ($LASTEXITCODE -ne 0) { throw "M1 failed on $($tool.source) with $LASTEXITCODE" }
             ./artifact/hex2-new.exe --architecture x86 --little-endian --base-address 0x400000 `
-              -f PE32-i386.hex2 -f ntdll-i386.hex2 -f $hex2 -o $exe
+              -f "$win/PE32-i386.hex2" -f "$win/ntdll-i386.hex2" -f $hex2 -o $exe
             if ($LASTEXITCODE -ne 0) { throw "hex2 failed on $hex2 with $LASTEXITCODE" }
             $want = (Get-FileHash "artifact/$($tool.name).exe").Hash
             $got = (Get-FileHash $exe).Hash
@@ -123,12 +125,13 @@ jobs:
             'x86/windows/unistd.c', 'x86/windows/process.c', 'x86/windows/fcntl.c', 'fcntl.c',
             'x86/windows/sys/stat.c', 'ctype.c', 'stdlib.c', 'stdarg.h', 'stdio.h', 'stdio.c',
             'bootstrappable.c' | ForEach-Object { '-f'; "../M2libc/$_" }
+          $win = '../M2libc/x86/windows'
           step ./artifact/M2.exe --architecture x86 -D __windows__=1 @libc `
             -f Development/exit-flush-test.c -o artifact/exit-flush-test.M1
           step ./artifact/catm.exe artifact/exit-flush-test-0.M1 ../M2libc/x86/x86_defs.M1 `
-            libc-core.M1 libc-full.M1 artifact/exit-flush-test.M1 pe-end-shim.M1
+            "$win/libc-core.M1" "$win/libc-full.M1" artifact/exit-flush-test.M1 "$win/pe-end-shim.M1"
           step ./artifact/M0.exe artifact/exit-flush-test-0.M1 artifact/exit-flush-test.hex2
-          step ./artifact/catm.exe artifact/exit-flush-test-0.hex2 PE32-i386.hex2 ntdll-i386.hex2 `
+          step ./artifact/catm.exe artifact/exit-flush-test-0.hex2 "$win/PE32-i386.hex2" "$win/ntdll-i386.hex2" `
             artifact/exit-flush-test.hex2
           step ./artifact/hex2.exe artifact/exit-flush-test-0.hex2 artifact/exit-flush-test.exe
           Push-Location artifact
@@ -154,13 +157,14 @@ jobs:
             'x86/windows/unistd.c', 'x86/windows/process.c', 'x86/windows/fcntl.c', 'fcntl.c',
             'x86/windows/sys/stat.c', 'ctype.c', 'stdlib.c', 'stdarg.h', 'stdio.h', 'stdio.c',
             'bootstrappable.c' | ForEach-Object { '-f'; "../M2libc/$_" }
+          $win = '../M2libc/x86/windows'
           step ./artifact/M2.exe --architecture x86 -D __windows__=1 @libc `
             -f Development/chmod-test.c -o artifact/chmod-test.M1
           step ./artifact/catm.exe artifact/chmod-test-0.M1 ../M2libc/x86/x86_defs.M1 `
-            libc-core.M1 libc-full.M1 artifact/chmod-test.M1 pe-end-shim.M1
+            "$win/libc-core.M1" "$win/libc-full.M1" artifact/chmod-test.M1 "$win/pe-end-shim.M1"
           step ./artifact/M0.exe artifact/chmod-test-0.M1 artifact/chmod-test.hex2
           step ./artifact/hex2-new.exe --architecture x86 --little-endian --base-address '0x400000' `
-            -f PE32-i386.hex2 -f ntdll-i386.hex2 -f artifact/chmod-test.hex2 -o artifact/chmod-test.exe
+            -f "$win/PE32-i386.hex2" -f "$win/ntdll-i386.hex2" -f artifact/chmod-test.hex2 -o artifact/chmod-test.exe
           if (-not (marked artifact/chmod-test.exe)) { throw "hex2 did not mark chmod-test.exe" }
           Push-Location artifact
           try {
@@ -202,12 +206,13 @@ jobs:
             'x86/windows/unistd.c', 'x86/windows/process.c', 'x86/windows/fcntl.c', 'fcntl.c',
             'x86/windows/sys/stat.c', 'ctype.c', 'stdlib.c', 'stdarg.h', 'stdio.h', 'stdio.c',
             'bootstrappable.c' | ForEach-Object { '-f'; "../M2libc/$_" }
+          $win = '../M2libc/x86/windows'
           step ./artifact/M2.exe --architecture x86 -D __windows__=1 @libc `
             -f Development/malloc-align-test.c -o artifact/malloc-align-test.M1
           step ./artifact/catm.exe artifact/malloc-align-test-0.M1 ../M2libc/x86/x86_defs.M1 `
-            libc-core.M1 libc-full.M1 artifact/malloc-align-test.M1 pe-end-shim.M1
+            "$win/libc-core.M1" "$win/libc-full.M1" artifact/malloc-align-test.M1 "$win/pe-end-shim.M1"
           step ./artifact/M0.exe artifact/malloc-align-test-0.M1 artifact/malloc-align-test.hex2
-          step ./artifact/catm.exe artifact/malloc-align-test-0.hex2 PE32-i386.hex2 ntdll-i386.hex2 `
+          step ./artifact/catm.exe artifact/malloc-align-test-0.hex2 "$win/PE32-i386.hex2" "$win/ntdll-i386.hex2" `
             artifact/malloc-align-test.hex2
           step ./artifact/hex2.exe artifact/malloc-align-test-0.hex2 artifact/malloc-align-test.exe
           step ./artifact/malloc-align-test.exe
@@ -229,12 +234,13 @@ jobs:
             'x86/windows/unistd.c', 'x86/windows/process.c', 'x86/windows/fcntl.c', 'fcntl.c',
             'x86/windows/sys/stat.c', 'ctype.c', 'stdlib.c', 'stdarg.h', 'stdio.h', 'stdio.c',
             'bootstrappable.c' | ForEach-Object { '-f'; "../M2libc/$_" }
+          $win = '../M2libc/x86/windows'
           step ./artifact/M2.exe --architecture x86 -D __windows__=1 @libc `
             -f Development/share-test.c -o artifact/share-test.M1
           step ./artifact/catm.exe artifact/share-test-0.M1 ../M2libc/x86/x86_defs.M1 `
-            libc-core.M1 libc-full.M1 artifact/share-test.M1 pe-end-shim.M1
+            "$win/libc-core.M1" "$win/libc-full.M1" artifact/share-test.M1 "$win/pe-end-shim.M1"
           step ./artifact/M0.exe artifact/share-test-0.M1 artifact/share-test.hex2
-          step ./artifact/catm.exe artifact/share-test-0.hex2 PE32-i386.hex2 ntdll-i386.hex2 `
+          step ./artifact/catm.exe artifact/share-test-0.hex2 "$win/PE32-i386.hex2" "$win/ntdll-i386.hex2" `
             artifact/share-test.hex2
           step ./artifact/hex2.exe artifact/share-test-0.hex2 artifact/share-test.exe
           Push-Location artifact
@@ -243,11 +249,12 @@ jobs:
 
   regenerate:
     name: Generated sources match their generators
-    # The scripts in x86/Development write every .hex0, .hex1 and .hex2 source
-    # and M2libc's ntdll-slots.h, and assemble each program from what they
-    # wrote to check it against the binary they built. A source edited by
-    # hand, or a generator changed without regenerating, leaves the tree
-    # different from what was committed. The generators are Python, so this
+    # The scripts in x86/Development write every .hex0, .hex1 and .hex2 source,
+    # M2libc's copies of the PE header and the ntdll plumbing, and M2libc's
+    # ntdll-slots.h, and assemble each program from what they wrote to check it
+    # against the binary they built. A source edited by hand, or a generator
+    # changed without regenerating, leaves the tree different from what was
+    # committed. The generators are Python, so this
     # needs no Windows.
     runs-on: ubuntu-latest
     timeout-minutes: 10

@@ -3,9 +3,10 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Regenerate the .hex0, .hex1 and .hex2 sources in ../, and M2libc's
-# ntdll-slots.h, from the generators here, and check that each program among
-# them assembles to exactly the binary its generator built.
+# Regenerate the .hex0, .hex1 and .hex2 sources in ../, M2libc's copies of
+# PE32-i386.hex2 and ntdll-i386.hex2, and M2libc's ntdll-slots.h, from the
+# generators here, and check that each program among them assembles to
+# exactly the binary its generator built.
 set -e
 
 # CC_X86_UPSTREAM (see the end of this file) is a path from wherever this was
@@ -31,14 +32,19 @@ python3 gen_m0.py     "$scratch/M0.exe"    ../M0_x86.hex2 ../ntdll-i386.hex2
 cmp "$scratch/hex0.exe" ../../bootstrap-seeds/PE32/i386/hex0-seed.exe
 echo "seed still reproduces"
 
-# libc-core.M1 is hand-written M1 whose mnemonics have to exist in the
-# x86_defs.M1 it will be concatenated with.  M0 does not diagnose one that
-# doesn't -- it passes the token through and the instruction silently vanishes
-# -- so check here, where the failure is a message rather than a corrupt binary
-# noticed several stages later.
-python3 check_mnemonics.py ../libc-core.M1 ../../M2libc/x86/x86_defs.M1
-python3 check_mnemonics.py ../libc-full.M1 ../../M2libc/x86/x86_defs.M1
-python3 check_mnemonics.py ../libc-bootstrap.M1 ../../M2libc/x86/x86_defs.M1
+# The links written by hand are built against the header and plumbing here,
+# and every program compiled from C against M2libc's x86/windows copies of
+# the same two files.
+cp ../PE32-i386.hex2 ../ntdll-i386.hex2 ../../M2libc/x86/windows/
+
+# M2libc's x86/windows/libc-*.M1 are hand-written M1 whose mnemonics have to
+# exist in the x86_defs.M1 they will be concatenated with.  M0 does not
+# diagnose one that doesn't -- it passes the token through and the instruction
+# silently vanishes -- so check here, where the failure is a message rather
+# than a corrupt binary noticed several stages later.
+python3 check_mnemonics.py ../../M2libc/x86/windows/libc-core.M1 ../../M2libc/x86/x86_defs.M1
+python3 check_mnemonics.py ../../M2libc/x86/windows/libc-full.M1 ../../M2libc/x86/x86_defs.M1
+python3 check_mnemonics.py ../../M2libc/x86/windows/libc-bootstrap.M1 ../../M2libc/x86/x86_defs.M1
 
 # cc_x86.M1 is readable assembly rather than hex, so it is not written from
 # scratch here: port_cc_x86.py patches upstream's copy.  Point CC_X86_UPSTREAM

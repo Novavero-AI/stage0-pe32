@@ -43,10 +43,10 @@ rem This is the last link written by hand; everything above it is compiled.
 rem Phase-5  M2-Planet, a C compiler with more of the language than cc_x86 has.
 rem M2-Planet, a fork carrying two general fixes (see the README), and
 rem M2libc\bootstrappable.c, unmodified, are vendored as git submodules.
-rem M2libc\x86\windows\bootstrap.c -- this project's own
-rem port of M2libc\x86\linux\bootstrap.c, and the only Windows-specific piece
-rem this phase needs -- lives in the M2libc fork (see .gitmodules) alongside
-rem the rest of this Windows port, rather than in this tree.
+rem From here on every program is C and links against M2libc's x86\windows
+rem target: its bootstrap.c or the full library, its libc-core.M1, and its
+rem copies of the PE header and the ntdll plumbing the links above are built
+rem with.
 "%ART%\catm.exe" "%ART%\M2-0.c" ^
 	"%HERE%..\M2libc\x86\windows\bootstrap.c" ^
 	"%HERE%..\M2-Planet\cc.h" "%HERE%..\M2libc\bootstrappable.c" ^
@@ -54,9 +54,9 @@ rem the rest of this Windows port, rather than in this tree.
 	"%HERE%..\M2-Planet\cc_types.c" "%HERE%..\M2-Planet\cc_emit.c" "%HERE%..\M2-Planet\cc_core.c" ^
 	"%HERE%..\M2-Planet\cc_macro.c" "%HERE%..\M2-Planet\cc.c" || goto :fail
 "%ART%\cc_x86.exe" "%ART%\M2-0.c" "%ART%\M2-0.M1" || goto :fail
-"%ART%\catm.exe" "%ART%\M2-0-0.M1" "%HERE%..\M2libc\x86\x86_defs.M1" "%HERE%libc-core.M1" "%HERE%libc-bootstrap.M1" "%ART%\M2-0.M1" || goto :fail
+"%ART%\catm.exe" "%ART%\M2-0-0.M1" "%HERE%..\M2libc\x86\x86_defs.M1" "%HERE%..\M2libc\x86\windows\libc-core.M1" "%HERE%..\M2libc\x86\windows\libc-bootstrap.M1" "%ART%\M2-0.M1" || goto :fail
 "%ART%\M0.exe" "%ART%\M2-0-0.M1" "%ART%\M2-0.hex2" || goto :fail
-"%ART%\catm.exe" "%ART%\M2-0-0.hex2" "%HERE%PE32-i386.hex2" "%HERE%ntdll-i386.hex2" "%ART%\M2-0.hex2" || goto :fail
+"%ART%\catm.exe" "%ART%\M2-0-0.hex2" "%HERE%..\M2libc\x86\windows\PE32-i386.hex2" "%HERE%..\M2libc\x86\windows\ntdll-i386.hex2" "%ART%\M2-0.hex2" || goto :fail
 "%ART%\hex2.exe" "%ART%\M2-0-0.hex2" "%ART%\M2.exe" || goto :fail
 
 rem Phase-6  M1-macro, a fuller assembler than M0: more label and pointer
@@ -78,9 +78,9 @@ rem that same address without touching M2-Planet's source.
 	-f "%HERE%..\mescc-tools\stringify.c" ^
 	-f "%HERE%..\mescc-tools\M1-macro.c" ^
 	-o "%ART%\M1-macro.M1" || goto :fail
-"%ART%\catm.exe" "%ART%\M1-macro-0.M1" "%HERE%..\M2libc\x86\x86_defs.M1" "%HERE%libc-core.M1" "%HERE%libc-bootstrap.M1" "%ART%\M1-macro.M1" "%HERE%pe-end-shim.M1" || goto :fail
+"%ART%\catm.exe" "%ART%\M1-macro-0.M1" "%HERE%..\M2libc\x86\x86_defs.M1" "%HERE%..\M2libc\x86\windows\libc-core.M1" "%HERE%..\M2libc\x86\windows\libc-bootstrap.M1" "%ART%\M1-macro.M1" "%HERE%..\M2libc\x86\windows\pe-end-shim.M1" || goto :fail
 "%ART%\M0.exe" "%ART%\M1-macro-0.M1" "%ART%\M1-macro.hex2" || goto :fail
-"%ART%\catm.exe" "%ART%\M1-macro-0.hex2" "%HERE%PE32-i386.hex2" "%HERE%ntdll-i386.hex2" "%ART%\M1-macro.hex2" || goto :fail
+"%ART%\catm.exe" "%ART%\M1-macro-0.hex2" "%HERE%..\M2libc\x86\windows\PE32-i386.hex2" "%HERE%..\M2libc\x86\windows\ntdll-i386.hex2" "%ART%\M1-macro.hex2" || goto :fail
 "%ART%\hex2.exe" "%ART%\M1-macro-0.hex2" "%ART%\M1.exe" || goto :fail
 
 rem Phase-7  hex2 from C.  The hand-written hex2 built everything up to here;
@@ -117,9 +117,9 @@ rem still read them by name directly (fn_create and friends), unaffected.
 	-f "%HERE%..\mescc-tools\hex2_word.c" ^
 	-f "%HERE%..\mescc-tools\hex2.c" ^
 	-o "%ART%\hex2_linker.M1" || goto :fail
-"%ART%\catm.exe" "%ART%\hex2_linker-0.M1" "%HERE%..\M2libc\x86\x86_defs.M1" "%HERE%libc-core.M1" "%HERE%libc-full.M1" "%ART%\hex2_linker.M1" "%HERE%pe-end-shim.M1" || goto :fail
+"%ART%\catm.exe" "%ART%\hex2_linker-0.M1" "%HERE%..\M2libc\x86\x86_defs.M1" "%HERE%..\M2libc\x86\windows\libc-core.M1" "%HERE%..\M2libc\x86\windows\libc-full.M1" "%ART%\hex2_linker.M1" "%HERE%..\M2libc\x86\windows\pe-end-shim.M1" || goto :fail
 "%ART%\M0.exe" "%ART%\hex2_linker-0.M1" "%ART%\hex2_linker.hex2" || goto :fail
-"%ART%\catm.exe" "%ART%\hex2_linker-0.hex2" "%HERE%PE32-i386.hex2" "%HERE%ntdll-i386.hex2" "%ART%\hex2_linker.hex2" || goto :fail
+"%ART%\catm.exe" "%ART%\hex2_linker-0.hex2" "%HERE%..\M2libc\x86\windows\PE32-i386.hex2" "%HERE%..\M2libc\x86\windows\ntdll-i386.hex2" "%ART%\hex2_linker.hex2" || goto :fail
 "%ART%\hex2.exe" "%ART%\hex2_linker-0.hex2" "%ART%\hex2-new.exe" || goto :fail
 
 rem Phase-8  kaem, the shell upstream drives this sequence with.  cmd.exe
@@ -151,9 +151,9 @@ rem fork and read PATH the way Windows writes it.
 	-f "%HERE%..\mescc-tools\Kaem\kaem_globals.c" ^
 	-f "%HERE%..\mescc-tools\Kaem\kaem.c" ^
 	-o "%ART%\kaem.M1" || goto :fail
-"%ART%\catm.exe" "%ART%\kaem-0.M1" "%HERE%..\M2libc\x86\x86_defs.M1" "%HERE%libc-core.M1" "%HERE%libc-full.M1" "%ART%\kaem.M1" "%HERE%pe-end-shim.M1" || goto :fail
+"%ART%\catm.exe" "%ART%\kaem-0.M1" "%HERE%..\M2libc\x86\x86_defs.M1" "%HERE%..\M2libc\x86\windows\libc-core.M1" "%HERE%..\M2libc\x86\windows\libc-full.M1" "%ART%\kaem.M1" "%HERE%..\M2libc\x86\windows\pe-end-shim.M1" || goto :fail
 "%ART%\M0.exe" "%ART%\kaem-0.M1" "%ART%\kaem.hex2" || goto :fail
-"%ART%\catm.exe" "%ART%\kaem-0.hex2" "%HERE%PE32-i386.hex2" "%HERE%ntdll-i386.hex2" "%ART%\kaem.hex2" || goto :fail
+"%ART%\catm.exe" "%ART%\kaem-0.hex2" "%HERE%..\M2libc\x86\windows\PE32-i386.hex2" "%HERE%..\M2libc\x86\windows\ntdll-i386.hex2" "%ART%\kaem.hex2" || goto :fail
 "%ART%\hex2.exe" "%ART%\kaem-0.hex2" "%ART%\kaem.exe" || goto :fail
 
 echo Built: hex0 hex1 hex2 catm M0 cc_x86 M2 M1 hex2-new kaem
