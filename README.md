@@ -47,10 +47,12 @@ by reading, from the bottom up.
 Clone with submodules -- from cc_x86 up, the build compiles C, and M2-Planet,
 M2libc, mescc-tools and mescc-tools-extra are vendored as submodules rather
 than by hand.  mescc-tools-extra is upstream's exactly as upstream wrote it.
-M2libc is a fork that carries the `x86/windows/` target and a Windows path in
-`_malloc_brk`, mescc-tools a fork that carries kaem's Windows changes, and
-M2-Planet a fork that carries two general fixes, all described where they
-matter below.
+M2libc is a fork that carries the `x86/windows/` target, the Windows runtime
+compiled programs link against, a Windows path in `_malloc_brk`, and two
+general fixes: `fseek` returns 0 on success, and armv7l's `close`, `unlink` and
+`chroot` pass the kernel their argument.  mescc-tools is a fork that carries
+kaem's Windows changes, and M2-Planet a fork that carries two general fixes,
+all described where they matter below.
 
 The chain and kaem's tests read their files byte for byte as committed. Git
 for Windows installs with `core.autocrlf` set to `true`, which checks text
