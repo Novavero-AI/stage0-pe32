@@ -311,8 +311,8 @@
 	58                          ; pop eax
 	C3                          ; ret
 
-# resolve_all(): fill in the eight fn_ slots.  Call this before anything
-# else; nothing below works until it has run.
+# resolve_all(): fill in every fn_ slot.  Call this before anything else;
+# nothing below works until it has run.
 :resolve_all
 	E8 %find_ntdll              ; call find_ntdll
 	89 C3                       ; mov ebx, eax                # ntdll base, held across every resolve_export call
@@ -569,7 +569,7 @@
 
 :fn_table
 
-# Resolved routine addresses.  Kept in memory because eight will not fit in registers.
+# Resolved routine addresses.  Kept in memory because they will not fit in registers.
 :fn_create
 00 00 00 00                     # fn_create: slot 0, resolved NtCreateFile -- open a file, or make one
 
@@ -589,16 +589,16 @@
 00 00 00 00                     # fn_rtlpath: slot 5, resolved RtlDosPathNameToNtPathName_U -- a DOS path becomes an NT path
 
 :fn_setinfo
-00 00 00 00                     # fn_setinfo: slot 6, resolved NtSetInformationFile -- lseek, and unlink
+00 00 00 00                     # fn_setinfo: slot 6, resolved NtSetInformationFile -- lseek
 
 :fn_queryinfo
-00 00 00 00                     # fn_queryinfo: slot 7, resolved NtQueryInformationFile -- lseek, and fstat
+00 00 00 00                     # fn_queryinfo: slot 7, resolved NtQueryInformationFile -- lseek
 
 :fn_queryattr
 00 00 00 00                     # fn_queryattr: slot 8, resolved NtQueryAttributesFile -- access
 
 :fn_queryfull
-00 00 00 00                     # fn_queryfull: slot 9, resolved NtQueryFullAttributesFile -- stat
+00 00 00 00                     # fn_queryfull: slot 9, resolved NtQueryFullAttributesFile -- unused
 
 :fn_setcwd
 00 00 00 00                     # fn_setcwd: slot 10, resolved RtlSetCurrentDirectory_U -- chdir
@@ -607,13 +607,13 @@
 00 00 00 00                     # fn_getcwd: slot 11, resolved RtlGetCurrentDirectory_U -- getcwd
 
 :fn_dup
-00 00 00 00                     # fn_dup: slot 12, resolved NtDuplicateObject -- dup and dup2
+00 00 00 00                     # fn_dup: slot 12, resolved NtDuplicateObject -- __spawn and fork
 
 :fn_time
-00 00 00 00                     # fn_time: slot 13, resolved NtQuerySystemTime -- time, gettimeofday, clock_gettime
+00 00 00 00                     # fn_time: slot 13, resolved NtQuerySystemTime -- unused
 
 :fn_queryvol
-00 00 00 00                     # fn_queryvol: slot 14, resolved NtQueryVolumeInformationFile -- isatty
+00 00 00 00                     # fn_queryvol: slot 14, resolved NtQueryVolumeInformationFile -- unused
 
 :fn_wait
 00 00 00 00                     # fn_wait: slot 15, resolved NtWaitForSingleObject -- waitpid
@@ -622,7 +622,7 @@
 00 00 00 00                     # fn_queryproc: slot 16, resolved NtQueryInformationProcess -- waitpid, for the exit status
 
 :fn_delete
-00 00 00 00                     # fn_delete: slot 17, resolved NtDeleteFile -- unlink and rmdir
+00 00 00 00                     # fn_delete: slot 17, resolved NtDeleteFile -- unlink, and chmod
 
 :fn_version
 00 00 00 00                     # fn_version: slot 18, resolved RtlGetVersion -- uname
@@ -637,7 +637,7 @@
 00 00 00 00                     # fn_resume: slot 21, resolved NtResumeThread -- __spawn: a new process starts suspended
 
 :fn_alloc
-00 00 00 00                     # fn_alloc: slot 22, resolved NtAllocateVirtualMemory -- a real brk, for a program too big to live inside the image
+00 00 00 00                     # fn_alloc: slot 22, resolved NtAllocateVirtualMemory -- malloc past the image, and fork's gate
 
 :fn_clone
 00 00 00 00                     # fn_clone: slot 23, resolved RtlCloneUserProcess -- fork; absent on wine, where the slot stays 0
@@ -646,16 +646,16 @@
 00 00 00 00                     # fn_getcontext: slot 24, resolved NtGetContextThread -- fork: the context a suspended child would start with
 
 :fn_setcontext
-00 00 00 00                     # fn_setcontext: slot 25, resolved NtSetContextThread -- fork: point that child at where its parent was instead
+00 00 00 00                     # fn_setcontext: slot 25, resolved NtSetContextThread -- fork: tell that child it is the child
 
 :fn_writevm
-00 00 00 00                     # fn_writevm: slot 26, resolved NtWriteVirtualMemory -- fork: copy this process's memory into that child
+00 00 00 00                     # fn_writevm: slot 26, resolved NtWriteVirtualMemory -- fork: clear a lock in that child's ntdll
 
 :fn_readvm
-00 00 00 00                     # fn_readvm: slot 27, resolved NtReadVirtualMemory -- fork: watch for the child to say it has parked
+00 00 00 00                     # fn_readvm: slot 27, resolved NtReadVirtualMemory -- unused
 
 :fn_suspend
-00 00 00 00                     # fn_suspend: slot 28, resolved NtSuspendThread -- fork: stop that child before overwriting it
+00 00 00 00                     # fn_suspend: slot 28, resolved NtSuspendThread -- unused
 
 :fn_wow64qinfo
 00 00 00 00                     # fn_wow64qinfo: slot 29, resolved NtWow64QueryInformationProcess64 -- wow64 clone fix: this process's own 64-bit PEB address

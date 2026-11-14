@@ -26,8 +26,8 @@ BOUNDARY = "__shared_end"
 # down: append here, never insert, and regenerate.
 #
 # The first eight are what the hand-written stages need and are reached from
-# assembly by name.  The rest are for the POSIX layer above, which reaches them
-# by slot from C.  A name ntdll does not export leaves its slot 0 rather than
+# assembly by name.  The rest are reached by slot only through __ntdll; the
+# POSIX layer above finds the routines it calls by name instead.  A name ntdll does not export leaves its slot 0 rather than
 # failing -- resolve_export returns 0 when it runs off the end of the export
 # table -- so a routine that only some Windows-alikes have can be listed here
 # and checked for by the one caller that wants it.  Resolving all of them in every program costs a walk of
@@ -40,29 +40,29 @@ NTDLL = [
     ("fn_close",      "NtClose",                      "close, and any other handle"),
     ("fn_exit",       "NtTerminateProcess",           "_exit"),
     ("fn_rtlpath",    "RtlDosPathNameToNtPathName_U", "a DOS path becomes an NT path"),
-    ("fn_setinfo",    "NtSetInformationFile",         "lseek, and unlink"),
-    ("fn_queryinfo",  "NtQueryInformationFile",       "lseek, and fstat"),
+    ("fn_setinfo",    "NtSetInformationFile",         "lseek"),
+    ("fn_queryinfo",  "NtQueryInformationFile",       "lseek"),
     ("fn_queryattr",  "NtQueryAttributesFile",        "access"),
-    ("fn_queryfull",  "NtQueryFullAttributesFile",    "stat"),
+    ("fn_queryfull",  "NtQueryFullAttributesFile",    "unused"),
     ("fn_setcwd",     "RtlSetCurrentDirectory_U",     "chdir"),
     ("fn_getcwd",     "RtlGetCurrentDirectory_U",     "getcwd"),
-    ("fn_dup",        "NtDuplicateObject",            "dup and dup2"),
-    ("fn_time",       "NtQuerySystemTime",            "time, gettimeofday, clock_gettime"),
-    ("fn_queryvol",   "NtQueryVolumeInformationFile", "isatty"),
+    ("fn_dup",        "NtDuplicateObject",            "__spawn and fork"),
+    ("fn_time",       "NtQuerySystemTime",            "unused"),
+    ("fn_queryvol",   "NtQueryVolumeInformationFile", "unused"),
     ("fn_wait",       "NtWaitForSingleObject",        "waitpid"),
     ("fn_queryproc",  "NtQueryInformationProcess",    "waitpid, for the exit status"),
-    ("fn_delete",     "NtDeleteFile",                 "unlink and rmdir"),
+    ("fn_delete",     "NtDeleteFile",                 "unlink, and chmod"),
     ("fn_version",    "RtlGetVersion",                "uname"),
     ("fn_makeparams", "RtlCreateProcessParameters",   "__spawn, for the child's parameter block"),
     ("fn_createproc", "RtlCreateUserProcess",         "__spawn"),
     ("fn_resume",     "NtResumeThread",               "__spawn: a new process starts suspended"),
-    ("fn_alloc",      "NtAllocateVirtualMemory",      "a real brk, for a program too big to live inside the image"),
+    ("fn_alloc",      "NtAllocateVirtualMemory",      "malloc past the image, and fork's gate"),
     ("fn_clone",      "RtlCloneUserProcess",          "fork; absent on wine, where the slot stays 0"),
     ("fn_getcontext", "NtGetContextThread",           "fork: the context a suspended child would start with"),
-    ("fn_setcontext", "NtSetContextThread",           "fork: point that child at where its parent was instead"),
-    ("fn_writevm",    "NtWriteVirtualMemory",         "fork: copy this process's memory into that child"),
-    ("fn_readvm",     "NtReadVirtualMemory",          "fork: watch for the child to say it has parked"),
-    ("fn_suspend",    "NtSuspendThread",              "fork: stop that child before overwriting it"),
+    ("fn_setcontext", "NtSetContextThread",           "fork: tell that child it is the child"),
+    ("fn_writevm",    "NtWriteVirtualMemory",         "fork: clear a lock in that child's ntdll"),
+    ("fn_readvm",     "NtReadVirtualMemory",          "unused"),
+    ("fn_suspend",    "NtSuspendThread",              "unused"),
     ("fn_wow64qinfo", "NtWow64QueryInformationProcess64", "wow64 clone fix: this process's own 64-bit PEB address"),
     ("fn_wow64readvm","NtWow64ReadVirtualMemory64",   "wow64 clone fix: read the 64-bit ntdll/wow64cpu images to resolve BTCpuSimulate"),
 ]
@@ -224,13 +224,13 @@ what upstream's callers assume of it.""",
 "fputc": """fputc(al = byte): one write per byte, as upstream does it.  Every
 register comes back untouched, eax included, so a caller may write the same byte
 twice without reloading it.""",
-"resolve_all": """resolve_all(): fill in the eight fn_ slots.  Call this before anything
-else; nothing below works until it has run.""",
+"resolve_all": """resolve_all(): fill in every fn_ slot.  Call this before anything else;
+nothing below works until it has run.""",
 "open_argv": """open_argv(): argv[1] opened for reading, argv[2] created or truncated for
 writing.  Every program in this chain takes exactly those two arguments.""",
 "exit_ok": "exit_ok(): close both files and exit 0.  Does not return.",
 "name_NtCreateFile": "Export names, matched by resolve_export.",
-"fn_create": "Resolved routine addresses.  Kept in memory because eight will not fit in registers.",
+"fn_create": "Resolved routine addresses.  Kept in memory because they will not fit in registers.",
 "g_access": "Arguments that must survive the RtlDosPathNameToNtPathName_U call.",
 "oa": "OBJECT_ATTRIBUTES, one label per field so hex2 can address each of them.",
 "iosb": "IO_STATUS_BLOCK.  Information is the byte count of a read.",
